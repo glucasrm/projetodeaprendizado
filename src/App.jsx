@@ -1,5 +1,5 @@
-import Main from './components/Main'
-import Final from './components/Final'
+import Main from './components/home/Mainhome'
+import Final from './components/home/Finalhome'
 import "tailwindcss";
 
 

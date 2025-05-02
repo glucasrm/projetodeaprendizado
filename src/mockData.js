@@ -1,4 +1,14 @@
 // src/mockData.js
+export const logosJogos = {
+  freefire: {
+    nome: "Free Fire",
+    logo: "https://upload.wikimedia.org/wikipedia/commons/0/0d/Garena_Free_Fire_logo.svg",
+  },
+  valorant: {
+    nome: "Valorant",
+    logo: "https://upload.wikimedia.org/wikipedia/commons/2/2f/Valorant_logo_-_pink_color_version.svg",
+  },
+};
 
 export const futurosTorneios = [
   {
@@ -9,10 +19,15 @@ export const futurosTorneios = [
     horario: "18:00",
     local: "Online",
     tipo: "Solo",
+    formato: "1v1",
     slots: 32,
     tags: ["Rápido", "Competitivo"],
     organizador: "Admin X",
     premiacao: "R$ 500",
+    jogo: "freefire",
+    jogoNome: logosJogos["freefire"].nome,
+    jogoLogo: logosJogos["freefire"].logo,
+    participantes: [], // vazio inicialmente
   },
   {
     id: 2,
@@ -22,10 +37,18 @@ export const futurosTorneios = [
     horario: "20:00",
     local: "São Paulo",
     tipo: "Duplas",
+    formato: "2v2",
     slots: 64,
     tags: ["Oficial", "Presencial"],
     organizador: "Organização Y",
     premiacao: "R$ 1000",
+    jogo: "valorant",
+    jogoNome: logosJogos["valorant"].nome,
+    jogoLogo: logosJogos["valorant"].logo,
+    participantes: [
+      { id: 1, nome: "Time Alpha" },
+      { id: 2, nome: "Time Bravo" },
+    ],
   },
 ];
 
@@ -38,6 +61,7 @@ export const torneiosPassados = [
     horario: "17:00",
     local: "Online",
     tipo: "Solo",
+    formato: "1v1",
     slots: 32,
     tags: ["Finalizado", "Competitivo"],
     organizador: "Admin X",
@@ -52,6 +76,7 @@ export const torneiosPassados = [
     horario: "19:00",
     local: "São Paulo",
     tipo: "Duplas",
+    formato: "2v2",
     slots: 64,
     tags: ["Finalizado", "Presencial"],
     organizador: "Organização Y",
@@ -59,7 +84,6 @@ export const torneiosPassados = [
     vencedor: "Jogador123",
   },
 ];
-
 
 export const topJogadores = [
   {
