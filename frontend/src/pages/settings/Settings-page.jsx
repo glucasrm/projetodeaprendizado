@@ -1,6 +1,7 @@
 // src/pages/Settings.jsx
 import axios from 'axios';
-import { useState, useEffect } from "react";
+import { useState, useEffect, useContext } from "react";
+import UserContext from '../../context/UserContext';
 import {
   Camera,
   UserCircle,
@@ -29,6 +30,18 @@ export default function Settings () {
   const [bannerPreview, setBannerPreview] = useState(null);
   const [bio, setBio] = useState("");
   const [fileError, setFileError] = useState(null); // <-- NOVO ESTADO PARA ERRO DE ARQUIVO
+  const [nome, setNome] = useState("");
+  const [sobrenome, setSobrenome] = useState("");
+  const [email, setEmail] = useState("");
+  const [telefone, setTelefone] = useState("");
+  const [dataNascimento, setDataNascimento] = useState("");
+  const [genero, setGenero] = useState("");
+  const [selectedPlatform, setSelectedPlatform] = useState("");
+  const [socialUrl, setSocialUrl] = useState("");
+  const [socialLinks, setSocialLinks] = useState([]); // Se quiser exibir uma lista das já cadastradas
+  const { user, login } = useContext(UserContext);
+
+
 
   // Lógica de busca inicial do perfil
   useEffect(() => {
@@ -130,8 +143,131 @@ export default function Settings () {
     }
   };
 
-  return (
-    <div className="flex min-h-screen text-white bg-gray-900">
+  const handleAddSocialLink = async () => {
+  const token = localStorage.getItem("token");
+  if (!token) {
+    alert("Você não está autenticado.");
+    return;
+  }
+
+  if (!selectedPlatform || !socialUrl.startsWith('http')) {
+    alert("Preencha a plataforma e coloque uma URL válida com http:// ou https://");
+    return;
+  }
+
+  try {
+    await axios.post(
+      "http://localhost:3000/api/profile/social-links",
+      {
+        platform: selectedPlatform,
+        url: socialUrl,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    alert("Rede social adicionada!");
+    setSelectedPlatform("");
+    setSocialUrl("");
+  } catch (error) {
+    console.error("Erro ao adicionar rede social:", error);
+    alert("Erro ao adicionar rede social.");
+  }
+};
+
+
+  //aba de informações pessoais  
+  useEffect(() => {
+  const fetchAccountInfo = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    try {
+      const response = await axios.get("http://localhost:3000/api/account/account-info", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = response.data;
+      setNome(data.nome || "");
+      setSobrenome(data.sobrenome || "");
+      setEmail(data.email || "");
+      setTelefone(data.telefone || "");
+      setDataNascimento(data.dataNascimento ? data.dataNascimento.slice(0, 10) : ""); // Corta o timestamp
+      setGenero(data.genero || "");
+    } catch (error) {
+      console.error("Erro ao buscar informações da conta:", error);
+    }
+  };
+
+  if (abaAtiva === "pessoais") {
+    fetchAccountInfo();
+  }
+}, [abaAtiva]);
+
+const handleSaveAccountInfo = async (e) => {
+  e.preventDefault();
+
+  const token = localStorage.getItem("token");
+  if (!token) {
+    alert("Você não está autenticado. Faça login novamente.");
+    return;
+  }
+
+  try {
+    await axios.post(
+      "http://localhost:3000/api/account/account-info",
+      {
+        nome,
+        sobrenome,
+        telefone,
+        dataNascimento,
+        genero,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    alert("Informações pessoais salvas com sucesso!");
+  } catch (error) {
+    console.error("Erro ao salvar informações pessoais:", error);
+    alert("Erro ao salvar informações pessoais.");
+  }
+};
+
+//mostrar as redes sociais já cadastradas
+useEffect(() => {
+  const fetchSocialLinks = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    try {
+      const response = await axios.get("http://localhost:3000/api/profile/social-links", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      setSocialLinks(response.data);
+    } catch (error) {
+      console.error("Erro ao buscar redes sociais:", error);
+    }
+  };
+
+  if (abaAtiva === "conta") {
+    fetchSocialLinks();
+  }
+}, [abaAtiva]);
+
+
+  return ( 
+    login?(<div className="flex min-h-screen text-white bg-gray-900">
       {/* Abas laterais */}
       <aside className="w-1/4 bg-gray-900 p-6 border-r border-gray-700 shadow-sm">
         <nav className="space-y-4">
@@ -252,6 +388,111 @@ export default function Settings () {
                   className="w-full p-2 rounded-md bg-gray-800 border border-gray-700 text-white"
                   value={bio}
                 ></textarea>
+
+                <div>
+
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">Redes Sociais Salvas:</h3>
+
+              {socialLinks.length === 0 && <p className="text-gray-400">Nenhuma rede social adicionada ainda.</p>}
+
+                        {socialLinks.map((link) => (
+            <div key={link.id} className="flex items-center space-x-2 mb-2">
+              <span className="capitalize">{link.platform}:</span>
+              <input
+                type="text"
+                value={link.url}
+                onChange={(e) => {
+                  const updatedLinks = socialLinks.map((l) =>
+                    l.id === link.id ? { ...l, url: e.target.value } : l
+                  );
+                  setSocialLinks(updatedLinks);
+                }}
+                className="flex-1 p-2 rounded bg-gray-800 border border-gray-700 text-white"
+              />
+
+              <button
+                onClick={async () => {
+                  const token = localStorage.getItem("token");
+                  try {
+                    await axios.put(
+                      `http://localhost:3000/api/profile/social-links/${link.id}`,
+                      { url: link.url },
+                      {
+                        headers: { Authorization: `Bearer ${token}` },
+                      }
+                    );
+                    alert("Rede social atualizada!");
+                  } catch (error) {
+                    console.error("Erro ao atualizar:", error);
+                    alert("Erro ao atualizar a rede social.");
+                  }
+                }}
+                className="bg-blue-600 text-white px-2 py-1 rounded"
+              >
+                Salvar
+              </button>
+
+              <button
+                onClick={async () => {
+                  const token = localStorage.getItem("token");
+                  try {
+                    await axios.delete(
+                      `http://localhost:3000/api/profile/social-links/${link.id}`,
+                      {
+                        headers: { Authorization: `Bearer ${token}` },
+                      }
+                    );
+                    setSocialLinks(socialLinks.filter((l) => l.id !== link.id));
+                    alert("Rede social deletada!");
+                  } catch (error) {
+                    console.error("Erro ao deletar:", error);
+                    alert("Erro ao deletar a rede social.");
+                  }
+                }}
+                className="bg-red-600 text-white px-2 py-1 rounded"
+              >
+                Excluir
+              </button>
+            </div>
+          ))}
+
+            </div>
+
+
+              <label className="block text-sm font-medium mb-1">A dicionar Rede Social</label>
+              <select
+                value={selectedPlatform}
+                onChange={(e) => setSelectedPlatform(e.target.value)}
+                className="w-full p-2 rounded bg-gray-800 border border-gray-700 mb-2"
+              >
+                <option value="">Selecione uma plataforma</option>
+                <option value="discord">Discord</option>
+                <option value="instagram">Instagram</option>
+                <option value="youtube">YouTube</option>
+                <option value="facebook">Facebook</option>
+              </select>
+
+              {selectedPlatform && (
+                <>
+                  <input
+                    type="text"
+                    placeholder="Digite o link da sua rede social"
+                    className="w-full p-2 rounded bg-gray-800 border border-gray-700 mb-2"
+                    value={socialUrl}
+                    onChange={(e) => setSocialUrl(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddSocialLink}
+                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                  >
+                    Salvar Rede Social
+                  </button>
+                </>
+              )}
+            </div>
+
               </div>
 
               <button className="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" onClick={handleusername}>
@@ -266,58 +507,74 @@ export default function Settings () {
         {abaAtiva === "pessoais" && (
           <div>
             <h2 className="text-2xl font-bold mb-6">Informações Pessoais</h2>
-            <form className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium mb-1 flex items-center">
-                  <User className="w-4 h-4 mr-2" />
-                  Primeiro Nome
-                </label>
-                <input type="text" className="w-full p-2 rounded bg-gray-800 border border-gray-700" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1 flex items-center">
-                  <User className="w-4 h-4 mr-2" />
-                  Sobrenome
-                </label>
-                <input type="text" className="w-full p-2 rounded bg-gray-800 border border-gray-700" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1 flex items-center">
-                  <Calendar className="w-4 h-4 mr-2" />
-                  Data de Nascimento
-                </label>
-                <input type="date" className="w-full p-2 rounded bg-gray-800 border border-gray-700" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1 flex items-center">
-                  <Mail className="w-4 h-4 mr-2" />
-                  Email
-                </label>
-                <input type="email" className="w-full p-2 rounded bg-gray-800 border border-gray-700" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1 flex items-center">
-                  <Phone className="w-4 h-4 mr-2" />
-                  Telefone
-                </label>
-                <input type="tel" className="w-full p-2 rounded bg-gray-800 border border-gray-700" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1 flex items-center">
-                  <Venus className="w-4 h-4 mr-2" />
-                  Gênero
-                </label>
-                <select className="w-full p-2 rounded bg-gray-800 border border-gray-700">
-                  <option value="">Selecione</option>
-                  <option value="masculino">Masculino</option>
-                  <option value="feminino">Feminino</option>
-                  <option value="outro">Outro</option>
-                </select>
-              </div>
-              <button className="col-span-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-                Salvar
-              </button>
-            </form>
+            <form onSubmit={handleSaveAccountInfo} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-medium mb-1">Primeiro Nome</label>
+              <input
+                type="text"
+                className="w-full p-2 rounded bg-gray-800 border border-gray-700"
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Sobrenome</label>
+              <input
+                type="text"
+                className="w-full p-2 rounded bg-gray-800 border border-gray-700"
+                value={sobrenome}
+                onChange={(e) => setSobrenome(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Data de Nascimento</label>
+              <input
+                type="date"
+                className="w-full p-2 rounded bg-gray-800 border border-gray-700"
+                value={dataNascimento}
+                onChange={(e) => setDataNascimento(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Email</label>
+              <input
+                type="email"
+                className="w-full p-2 rounded bg-gray-800 border border-gray-700"
+                value={email}
+                disabled
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Telefone</label>
+              <input
+                type="tel"
+                className="w-full p-2 rounded bg-gray-800 border border-gray-700"
+                value={telefone}
+                onChange={(e) => setTelefone(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Gênero</label>
+              <select
+                className="w-full p-2 rounded bg-gray-800 border border-gray-700"
+                value={genero}
+                onChange={(e) => setGenero(e.target.value)}
+              >
+                <option value="">Selecione</option>
+                <option value="Masculino">Masculino</option>
+                <option value="Feminino">Feminino</option>
+                <option value="Outro">Outro</option>
+              </select>
+            </div>
+
+            <button
+              type="submit"
+              className="col-span-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            >
+              Salvar
+            </button>
+          </form>
+
           </div>
         )}
 
@@ -329,6 +586,11 @@ export default function Settings () {
         )}
       </main>
     </div>
-  );
+):(
+  <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white text-2xl">
+    Usuário não logado.
+  </div>
+)
+      );
 
 };

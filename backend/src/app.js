@@ -9,6 +9,8 @@ import prismaPlugin from './plugins/prisma.js';
 import authenticatePlugin from './plugins/authenticate.js';
 import path from 'path'; // <-- NOVA IMPORTAÇÃO para resolver caminhos
 import { fileURLToPath } from 'url'; // <-- NOVA IMPORTAÇÃO para ES Modules
+import { accountRoutes } from './controllers/account-controller.js'; //nova importação das configurações do perfil
+import { socialLinksRoutes } from './controllers/social-links-controller.js'; //nova importação das redes sociais no perfil
 
 // Ajuda a resolver __dirname em ES Modules
 const __filename = fileURLToPath(import.meta.url);
@@ -37,5 +39,8 @@ app.register(authenticatePlugin);
 
 app.register(authRoutes, { prefix: '/api/auth' });
 app.register(profileRoutes, { prefix: '/api/profile' });
+app.register(accountRoutes, { prefix: '/api/account' });
+app.register(socialLinksRoutes, { prefix: '/api/profile' });
+
 
 export default app;

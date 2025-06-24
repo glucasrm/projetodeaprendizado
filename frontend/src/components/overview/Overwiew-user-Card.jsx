@@ -2,9 +2,52 @@
 
 import { Card, CardContent } from "../ui/card";
 import { Badge } from "../ui/badge";
-import { FaInstagram } from "react-icons/fa";
+import { FaInstagram, FaFacebook, FaYoutube, FaDiscord } from "react-icons/fa";
+import {useContext, useEffect, useState} from 'react';
+import UserContext from "../../context/UserContext";
+import axios from 'axios';
 
-const VisaoGeralCard = ({ texto, idioma, gamesaccount }) => { 
+const VisaoGeralCard = ({ texto, idioma, gamesaccount, socialLinks: socialLinksProp }) => { 
+
+  const { user } = useContext(UserContext);
+  const [socialLinks, setSocialLinks] = useState([]);
+
+useEffect(() => {
+  const fetchSocialLinks = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    try {
+      const res = await axios.get("http://localhost:3000/api/profile/social-links", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      setSocialLinks(res.data);
+    } catch (error) {
+      console.error("Erro ao buscar redes sociais:", error);
+    }
+  };
+
+  
+    fetchSocialLinks();
+}, []);
+
+
+  const renderIcon = (platform) => {
+    switch (platform) {
+      case 'instagram':
+        return <FaInstagram size={28} />;
+      case 'facebook':
+        return <FaFacebook size={28} />;
+      case 'youtube':
+        return <FaYoutube size={28} />;
+      case 'discord':
+        return <FaDiscord size={28} />;
+      default:
+        return null;
+    }
+  };
   return (
     <div className="flex flex-col md:flex-row gap-6">
       {/* Card About */}
@@ -14,7 +57,7 @@ const VisaoGeralCard = ({ texto, idioma, gamesaccount }) => {
             <h2 className="text-xl font-semibold">Sobre</h2>
             <div>
               <h3 className="text-sm font-medium text-gray-400">Biografia</h3>
-              <p className="text-base mt-1">{texto}</p>
+              <p className="text-base mt-1">{user?.bio || 'Bio'}</p>
             </div>
             <div>
               <h3 className="text-sm font-medium text-gray-400">Idiomas</h3>
@@ -22,12 +65,18 @@ const VisaoGeralCard = ({ texto, idioma, gamesaccount }) => {
                 {idioma}
               </Badge>
             </div>
-            <div>
+      <div>
               <h3 className="text-sm font-medium text-gray-400">Redes sociais</h3>
               <div className="flex items-center gap-3 mt-2">
-                <a href="#" className="text-white hover:text-blue-400">
-                  <FaInstagram size={28} />
-                </a>
+                {socialLinks.length > 0 ? (
+                  socialLinks.map((link) => (
+                    <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer" className="text-white hover:text-blue-400">
+                      {renderIcon(link.platform)}
+                    </a>
+                  ))
+                ) : (
+                  <p className="text-gray-500">Nenhuma rede social adicionada.</p>
+                )}
               </div>
             </div>
           </CardContent>

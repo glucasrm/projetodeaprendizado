@@ -30,12 +30,14 @@ import EquipesPage from './pages/teams/Teams-list-page';
 import CreateOptionsGrid from './pages/created/Created-teams-tournaments';
 import PainelPrincipal from './pages/tournaments/Tournaments-panel-page';
 import AppearanceSettings from './pages/tournaments/Tournaments-appearence-page';
-
+import { UserProvider } from './context/UserContext';
+import NotificationsPage from './pages/notifications/notifications';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
-      <Routes>
+      <UserProvider>
+        <Routes>
         {/* Rotas COM Navbar */}
         <Route path="/" element={<MainLayout><App /></MainLayout>} />
         <Route path="/torneios" element={<MainLayout><Torneios/></MainLayout>} />
@@ -51,7 +53,7 @@ createRoot(document.getElementById('root')).render(
         <Route path="/torneios/:jogo/:id/painel" element={<MainLayout><PainelPrincipal /></MainLayout>} />
         <Route path="/torneios/:jogo/:id/painel/aparencia" element={<MainLayout><AppearanceSettings /></MainLayout>} />
         <Route path="/torneios/:jogo/:id" element={<MainLayout><TorneioDetalhesPage/></MainLayout>} />
-  
+        <Route path="/notificacoes" element={<MainLayout><NotificationsPage/></MainLayout>} />  
 
         {/*abas do perfil page*/}
         <Route path="/perfil" element={<MainLayout><PerfilPage /></MainLayout>}>
@@ -61,7 +63,11 @@ createRoot(document.getElementById('root')).render(
         <Route path="torneios-usuario" element={<TorneiosDoUsuario />} />
         </Route>
 
-        
+        <Route path="/perfil/:username" element={<MainLayout><PerfilPage /></MainLayout>}>
+          <Route index element={<OverViewPerfil />} />
+        </Route>
+
+
         {/*abas do gamepage*/}
         <Route path="/games/:slug" element={<MainLayout><GamePage/></MainLayout>}>
         <Route index element={<OverviewPage />} />
@@ -79,6 +85,7 @@ createRoot(document.getElementById('root')).render(
         <Route path="/cadastro" element={<Cadastro />} />
 
        </Routes>
+      </UserProvider>
     </BrowserRouter>
   </StrictMode>
 );

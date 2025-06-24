@@ -1,9 +1,49 @@
-import React from 'react';
+import {React, useContext, useState, useEffect} from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
+import UserContext from '../../context/UserContext';
+import axios from  'axios';
+import { useParams } from 'react-router-dom';
+
 
 const PerfilPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { username } = useParams();
+  const [publicProfile, setPublicProfile] = useState(null);
+  const { user, login } = useContext(UserContext);
+
+  //teste busca de perfil do usuario
+useEffect(() => {
+  const fetchPublicProfile = async () => {
+    if (username) {
+      try {
+        const res = await axios.get(`http://localhost:3000/api/profile/public/${username}`);
+        setPublicProfile(res.data);
+      } catch (error) {
+        console.error('Erro ao carregar perfil público:', error);
+      }
+    }
+  };
+
+  fetchPublicProfile();
+}, [username]);
+
+const profileData = username ? publicProfile : user;
+
+  
+  const handleNavigate = (path, redirectTo = null) => {
+    if (redirectTo) {
+      navigate(path, { state: { redirectTo } });
+    } else {
+      navigate(path);
+    }
+  };
+
+  
+
+ 
+  
+  
 
   const getActiveTab = () => {
     if (location.pathname.includes('/estatisticas')) return 'estatisticas';
@@ -16,28 +56,46 @@ const PerfilPage = () => {
   };
 
   const activeTab = getActiveTab();
+  
+
+    const avatarUrl = profileData?.avatar
+  ? `${import.meta.env.VITE_API_URL}${profileData.avatar}`
+  : '/default-avatar.png';
+
+   const bannerUrl = profileData?.banner
+  ? `${import.meta.env.VITE_API_URL}${profileData.banner}`
+  : '/default-banner.png';
+
+  if (username && !publicProfile) {
+  return <div className="text-white">Carregando perfil público...</div>;
+}
 
   return (
-    <nav>
+    
+    login?( <nav>
       <div className="min-h-screen bg-[#0F172A] text-white">
 
         {/* Banner fake temporário */}
-        <div
-          className="relative h-96 w-full bg-cover bg-center"
+        <div className="relative h-96 w-full">
+        <img
+          src={bannerUrl}
+          className="h-96 w-full object-cover border border-gray-900"
           style={{
-            backgroundColor: '#1E293B', // Apenas uma cor fixa por enquanto
+            backgroundColor: '#1E293B'
           }}
-        >
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#0F172A]" />
-        </div>
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#0F172A]" />
+      </div>
 
         {/* Avatar + Nome + Bio Fake */}
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex items-center space-x-4 mt-6">
-            <div className="w-24 h-24 bg-gray-500 rounded-full"></div>
+            <img
+            src={avatarUrl}
+            className="w-24 h-24 bg-gray-500 rounded-full"></img>
             <div>
-              <h2 className="text-xl font-bold">Nome do Usuário</h2>
-              <p className="text-gray-400">Bio do usuário vai aqui...</p>
+              <span  className="text-xl font-bold">{profileData?.username || 'Usuário'}</span>
+              <p className="text-gray-400">{profileData?.bio || 'Bio'}</p>
             </div>
           </div>
 
@@ -88,7 +146,10 @@ const PerfilPage = () => {
         </div>
       </div>
     </nav>
-  );
+):(<div className="flex items-center justify-center min-h-screen bg-gray-900 text-white text-2xl">
+    Usuário não logado.
+  </div>)
+     );
 };
 
 export default PerfilPage;

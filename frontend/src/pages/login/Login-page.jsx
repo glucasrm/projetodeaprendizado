@@ -1,15 +1,18 @@
 //página de login
 
-import { useState } from 'react';
+import { useContext,useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Logo from '../../assets/logo.png';
+import UserContext from '../../context/UserContext';
 
 export default function Login() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [mensagem, setMensagem] = useState('');
+
+  const { fetchUser } = useContext(UserContext);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -24,6 +27,9 @@ export default function Login() {
       const { token, user } = res.data;
       localStorage.setItem('token', token);
       setMensagem(`Bem-vindo, ${user.nome || 'usuário'}!`);
+
+    await fetchUser();  // ← Isso atualiza o contexto
+
       navigate('/'); // redirecionar para a dashboard/painel
     } catch (err) {
       console.error(err);

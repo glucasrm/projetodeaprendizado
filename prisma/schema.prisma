@@ -7,25 +7,34 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-
-
 model User {
-  id          String   @id @default(uuid())
-  nome        String
-  sobrenome   String
-  email       String   @unique
-  telefone    String
-  passwordHash String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  profile     Profile? // Adicione esta linha para a relação 1:1 com Profile
+  id              String        @id @default(uuid())
+  nome            String
+  sobrenome       String
+  email           String        @unique
+  telefone        String
+  passwordHash    String
+  dataNascimento  DateTime?
+  genero          String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  profile         Profile?
+  socialLinks     SocialLink[]  // <-- Relacionamento 1:N (Um usuário pode ter várias redes)
 }
 
 model Profile {
-  userId   String @id @unique // userId é a chave primária e única
-  user     User   @relation(fields: [userId], references: [id]) // Relação com o modelo User
+  userId   String @id @unique
+  user     User   @relation(fields: [userId], references: [id])
   username String @unique
   avatar   String?
   banner   String?
   bio      String?
+}
+
+model SocialLink {
+  id        String   @id @default(uuid())
+  userId    String
+  platform  String   // Exemplo: 'discord', 'instagram', 'youtube', 'facebook'
+  url       String
+  user      User     @relation(fields: [userId], references: [id])
 }

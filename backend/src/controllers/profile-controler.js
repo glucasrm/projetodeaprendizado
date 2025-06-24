@@ -6,12 +6,15 @@ import path from 'path';
 import util from 'util';
 import { pipeline } from 'stream';
 
+
 const pump = util.promisify(pipeline);
 
 /**
  * Salva arquivo no disco local
  */
 async function saveFile(part, folder = 'uploads') {
+
+
   const ext = path.extname(part.filename);
   const filename = `${randomUUID()}${ext}`;
   const uploadDir = path.resolve(`./public/${folder}`);
@@ -25,6 +28,40 @@ async function saveFile(part, folder = 'uploads') {
 }
 
 export async function profileRoutes(app) {
+   // Rota pública de perfil por username
+  app.get('/public/:encodedUsername', async (request, reply) => {
+  const { encodedUsername } = request.params;
+
+  // Decode Base64
+  let username;
+  try {
+    username = Buffer.from(encodedUsername, 'base64').toString('utf8');
+  } catch (error) {
+    return reply.status(400).send({ message: 'Username inválido na URL.' });
+  }
+
+  // Buscar o perfil pelo username decodificado
+  const profile = await app.prisma.profile.findUnique({
+    where: { username },
+    include: {
+      user: {
+        select: {
+          nome: true,
+          socialLinks: true,
+        },
+      },
+    },
+  });
+
+  if (!profile) {
+    return reply.status(404).send({ message: 'Perfil não encontrado' });
+  }
+
+  return reply.send(profile);
+});
+
+
+
   // Rota para buscar o perfil do usuário
   app.get(
     '/',
@@ -50,6 +87,8 @@ export async function profileRoutes(app) {
         if (!profile) {
           return reply.status(200).send({});
         }
+
+
 
         return reply.send(profile);
       } catch (error) {

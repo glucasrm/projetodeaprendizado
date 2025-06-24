@@ -1,5 +1,8 @@
+import UserContext from "../../context/UserContext";
+import useContext from 'react'
 
 const PerfilCard = ({ avatar, nome, bio, banner }) => {
+  const { user } = useContext(UserContext);
   return (
     <div className="flex flex-col items-center text-center w-full">
       {/* Banner com gradiente escuro */}
@@ -15,8 +18,8 @@ const PerfilCard = ({ avatar, nome, bio, banner }) => {
 
       {/* Nome e Bio */}
       <div >
-        <h1 className="text-3xl font-bold text-white">{nome}</h1>
-        <p className="text-gray-400 mt-2 max-w-xl">{bio}</p>
+        <h1 className="text-3xl font-bold text-white">{user?.username}</h1>
+        <p className="text-gray-400 mt-2 max-w-xl">{user?.bio || 'Bio'}</p>
       </div>
     </div>
   );

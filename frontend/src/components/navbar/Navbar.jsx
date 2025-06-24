@@ -1,16 +1,19 @@
 {/* componente presente em todas as páginas, com exceção da página de login e cadastro */}
 
 import { MessageCircle, Plus } from 'lucide-react';
-import React, { useContext } from 'react';
 import Logo from '../../assets/logo.png';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { UserContext } from './MainLayout';
 import UserMenu  from '../usermenu/UserMenu';
+import { useContext } from 'react';
+import { UserContext } from '../../context/UserContext';
+import { Bell } from 'lucide-react';
+
 
 const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, setUser } = useContext(UserContext);
+  const { user, login } = useContext(UserContext);
+
 
   const handleNavigate = (path, redirectTo = null) => {
     if (redirectTo) {
@@ -20,12 +23,18 @@ const Navbar = () => {
     }
   };
 
-  // Simulação de login
- const login = Boolean(localStorage.getItem("token"));
+  
 
+ 
+    const avatarUrl = user?.avatar
+  ? `${import.meta.env.VITE_API_URL}${user.avatar}`
+  : '/default-avatar.png';
 
+  const encodedUsername = user ? btoa(user.username) : '';
 
+  
   return (
+    
     <nav className="bg-gray-900 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1)] dark:bg-gray-900 border-b border-gray-500">
       <div className="flex flex-wrap items-center justify-between max-w-screen-xl mx-auto p-1">
         
@@ -51,7 +60,7 @@ const Navbar = () => {
 
             {/* Botão Criar Torneio */}
             <button
-              onClick={() => handleNavigate('/Created"')}
+              onClick={() => handleNavigate('/Created')}
               className="text-white hover:text-green-500 transition"
               title="Criar Torneio"
           
@@ -59,10 +68,31 @@ const Navbar = () => {
               <Plus size={24} />
             </button>
 
-              <div className="flex items-center space-x-2 cursor-pointer" onClick={() => handleNavigate('/perfil')}>
-                <img  alt="Avatar" className="w-8 h-8 rounded-full" />
-                <span className="text-white dark:text-white hover:text-gray-500 font-medium"></span>
-              </div>
+  
+          {/* Botão de Notificações */}
+          <button
+            onClick={() => handleNavigate('/notificacoes')}
+            className="text-white hover:text-yellow-400 transition"
+            title="Notificações"
+          >
+            <Bell size={22} />
+          </button>
+
+
+             {/* Avatar + Username */}
+             <div className="flex items-center space-x-2 cursor-pointer" onClick={() => handleNavigate(`/perfil/${encodedUsername}`)}
+>
+              <img
+                src={avatarUrl}
+                alt="Avatar"
+                className="w-8 h-8 rounded-full"
+              /><span className="text-white dark:text-white hover:text-gray-500 font-medium">
+                  {user?.username || 'Usuário'}
+                </span>
+
+              
+            </div>
+
               <UserMenu />
             </div>
 
