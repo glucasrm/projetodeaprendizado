@@ -20,6 +20,16 @@ model User {
   updatedAt       DateTime      @updatedAt
   profile         Profile?
   socialLinks     SocialLink[]  // <-- Relacionamento 1:N (Um usuário pode ter várias redes)
+
+    // Relacionamentos de amizade
+  sentFriendRequests     Friend[] @relation("UserFriends")
+  receivedFriendRequests Friend[] @relation("FriendOf")
+  
+  teams     TeamMember[]
+  tournamentsCreated Tournament[]
+  notifications Notification[]
+  bets        Bet[]       // Relacionamento reverso
+
 }
 
 model Profile {
@@ -38,3 +48,67 @@ model SocialLink {
   url       String
   user      User     @relation(fields: [userId], references: [id])
 }
+
+model Friend {
+  id          String   @id @default(uuid())
+  requester   User     @relation("UserFriends", fields: [requesterId], references: [id])
+  requesterId String
+  receiver    User     @relation("FriendOf", fields: [receiverId], references: [id])
+  receiverId  String
+  status      String   // "pending", "accepted", "declined"
+  createdAt   DateTime @default(now())
+
+  @@unique([requesterId, receiverId])
+}
+
+model Tournament {
+  id          String   @id @default(uuid())
+  name        String
+  game        String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdById String
+  participants Team[]
+  startDate   DateTime
+    bets        Bet[]       // Relacionamento reverso
+
+}
+
+model Team {
+  id        String        @id @default(uuid())
+  name      String
+  members   TeamMember[]
+  tournament Tournament?  @relation(fields: [tournamentId], references: [id])
+  tournamentId String?
+}
+
+model TeamMember {
+  id     String @id @default(uuid())
+  user   User   @relation(fields: [userId], references: [id])
+  userId String
+  team   Team   @relation(fields: [teamId], references: [id])
+  teamId String
+}
+
+model Bet {
+  id          String   @id @default(uuid())
+  user        User     @relation(fields: [userId], references: [id])
+  userId      String
+  tournament  Tournament @relation(fields: [tournamentId], references: [id])
+  tournamentId String
+  amount      Float
+  createdAt   DateTime @default(now())
+
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  type      String   // "friend_invite", "friend_accepted", "friend_declined", "team_invite", "tournament_invite", "tournament_alert", "bet_alert"
+  content   String
+  link      String   // URL ou rota para redirecionar
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  read      Boolean  @default(false)  // Corrigido de "Read" para "read" (convenção camelCase)
+  createdAt DateTime @default(now())
+  message   String
+}
+

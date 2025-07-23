@@ -1,4 +1,3 @@
-Invoke-RestMethod -Uri 'http://localhost:3001/api/profile/SEU_USER_ID_AQUI' -Method Get | ConvertTo-Json
 -- CreateTable
 CREATE TABLE "User" (
     "id" TEXT NOT NULL,

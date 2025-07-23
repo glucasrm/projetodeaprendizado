@@ -1,3 +1,4 @@
+// src/context/UserContext.js
 import React, { createContext, useEffect, useState } from 'react';
 import axios from 'axios';
 
@@ -23,8 +24,25 @@ export const UserProvider = ({ children }) => {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      setUser(res.data);
-      setLogin(true);
+      // CORREÇÃO: Mapeie o userId recebido do backend para a propriedade 'id' no estado do user
+      // Se o perfil for encontrado, res.data terá 'userId'.
+      // Se não for encontrado e o backend retornar { userId: '...', ... }, isso também funcionará.
+      if (res.data && res.data.userId) {
+        setUser({
+          id: res.data.userId, // Mapeia userId para id
+          username: res.data.username,
+          avatar: res.data.avatar,
+          banner: res.data.banner,
+          bio: res.data.bio,
+          // Adicione outras propriedades do perfil que você queira manter
+        });
+        setLogin(true);
+      } else {
+        // Caso o backend retorne um objeto vazio ou sem userId, trate como não logado
+        setUser(null);
+        setLogin(false);
+      }
+
     } catch (error) {
       console.error('Erro ao verificar token:', error);
       localStorage.removeItem('token');

@@ -32,6 +32,7 @@ import PainelPrincipal from './pages/tournaments/Tournaments-panel-page';
 import AppearanceSettings from './pages/tournaments/Tournaments-appearence-page';
 import { UserProvider } from './context/UserContext';
 import NotificationsPage from './pages/notifications/notifications';
+import UserSearchPage from './pages/search/search-page'; // Importar o componente de busca
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -54,6 +55,7 @@ createRoot(document.getElementById('root')).render(
         <Route path="/torneios/:jogo/:id/painel/aparencia" element={<MainLayout><AppearanceSettings /></MainLayout>} />
         <Route path="/torneios/:jogo/:id" element={<MainLayout><TorneioDetalhesPage/></MainLayout>} />
         <Route path="/notificacoes" element={<MainLayout><NotificationsPage/></MainLayout>} />  
+        <Route path="/search" element={<MainLayout><UserSearchPage /></MainLayout>} /> {/* Nova rota para busca de usuários */}
 
         {/*abas do perfil page*/}
         <Route path="/perfil" element={<MainLayout><PerfilPage /></MainLayout>}>
@@ -89,3 +91,4 @@ createRoot(document.getElementById('root')).render(
     </BrowserRouter>
   </StrictMode>
 );
+

@@ -14,9 +14,10 @@ async function authenticatePlugin(fastify, options) {
       const token = authHeader.split(' ')[1];
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET || 'chave_forte_teste');
-      
+
       // Anexa o userId ao objeto request para uso nas rotas
-      request.user = { id: decoded.id }; 
+      // ESTÁ CORRETO: O ID do usuário autenticado é definido em request.user.id
+      request.user = { id: decoded.id };
 
     } catch (err) {
       reply.status(401).send({ error: 'Não autorizado: ' + err.message });

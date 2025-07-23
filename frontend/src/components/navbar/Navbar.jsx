@@ -1,6 +1,6 @@
 {/* componente presente em todas as páginas, com exceção da página de login e cadastro */}
 
-import { MessageCircle, Plus } from 'lucide-react';
+import { MessageCircle, Plus, Search } from 'lucide-react';
 import Logo from '../../assets/logo.png';
 import { useNavigate, useLocation } from 'react-router-dom';
 import UserMenu  from '../usermenu/UserMenu';
@@ -66,6 +66,15 @@ const Navbar = () => {
           
             >
               <Plus size={24} />
+            </button>
+
+            {/* Botão de Pesquisa */}
+            <button
+              onClick={() => handleNavigate('/search')}
+              className="text-white hover:text-purple-400 transition"
+              title="Buscar Usuários"
+            >
+              <Search size={22} />
             </button>
 
   

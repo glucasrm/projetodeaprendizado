@@ -1,4 +1,3 @@
-
 // src/controllers/profile-controller.js
 import { randomUUID } from 'crypto';
 import fs from 'fs';
@@ -28,7 +27,7 @@ async function saveFile(part, folder = 'uploads') {
 }
 
 export async function profileRoutes(app) {
-   // Rota pública de perfil por username
+    // Rota pública de perfil por username
   app.get('/public/:encodedUsername', async (request, reply) => {
   const { encodedUsername } = request.params;
 
@@ -43,7 +42,12 @@ export async function profileRoutes(app) {
   // Buscar o perfil pelo username decodificado
   const profile = await app.prisma.profile.findUnique({
     where: { username },
-    include: {
+    select: { // Adicionando select para garantir que userId seja incluído
+      userId: true, // <-- Adicionado para garantir que o ID do usuário seja retornado
+      username: true,
+      avatar: true,
+      banner: true,
+      bio: true,
       user: {
         select: {
           nome: true,
@@ -62,34 +66,51 @@ export async function profileRoutes(app) {
 
 
 
-  // Rota para buscar o perfil do usuário
+  // Rota para buscar o perfil do usuário autenticado
   app.get(
     '/',
-    { preHandler: [app.authenticate] },
+    { preHandler: [app.authenticate] }, // Protege a rota com autenticação
     async (request, reply) => {
-      const userId = request.user.id;
+      const userId = request.user.id; // Obtém o ID do usuário autenticado do token
 
       if (!userId) {
+        // Esta validação é redundante se o preHandler app.authenticate funcionar corretamente,
+        // mas é um bom fallback.
         return reply.status(401).send({ error: 'Usuário não autenticado.' });
       }
 
       try {
+        // CORREÇÃO: Buscar o PERFIL pelo userId e garantir que o userId seja selecionado.
         const profile = await request.server.prisma.profile.findUnique({
           where: { userId: userId },
           select: {
+            userId: true, // <-- ESSA LINHA É A CHAVE: Inclui o ID do usuário
             username: true,
             avatar: true,
             banner: true,
             bio: true,
+            // Você pode incluir o relacionamento com 'User' aqui se precisar de mais dados do usuário principal
+            // user: {
+            //   select: {
+            //     nome: true,
+            //     email: true,
+            //   }
+            // }
           },
         });
 
         if (!profile) {
-          return reply.status(200).send({});
+          // Se o perfil não for encontrado, retorne um objeto com o userId para o frontend
+          return reply.status(200).send({
+            userId: userId, // Garante que o ID do usuário sempre seja retornado
+            username: null,
+            avatar: null,
+            banner: null,
+            bio: null,
+          });
         }
 
-
-
+        // Retorna o objeto do perfil que agora inclui o userId
         return reply.send(profile);
       } catch (error) {
         console.error('Erro ao buscar perfil:', error);
@@ -174,9 +195,11 @@ export async function profileRoutes(app) {
           },
         });
 
+        // Retorne o objeto do perfil atualizado, incluindo o userId
         return reply.send({
           message: 'Perfil atualizado com sucesso.',
           profile: {
+            userId: updatedProfile.userId, // Garante que o userId seja retornado
             username: updatedProfile.username,
             avatar: updatedProfile.avatar,
             banner: updatedProfile.banner,

@@ -4,7 +4,12 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio"
   },
   "keywords": [],
   "author": "",
@@ -12,8 +17,17 @@
   "description": "",
   "dependencies": {
     "@fastify/cors": "^11.0.1",
+    "@fastify/multipart": "^8.3.0",
+    "@fastify/static": "^7.0.0",
+    "@prisma/client": "^5.6.0",
     "dotenv": "^16.5.0",
-    "fastify": "^5.3.2",
-    "jsonwebtoken": "^9.0.2"
+    "fastify": "^4.24.3",
+    "fastify-plugin": "^4.5.1",
+    "jsonwebtoken": "^9.0.2",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1",
+    "prisma": "^5.6.0"
   }
 }

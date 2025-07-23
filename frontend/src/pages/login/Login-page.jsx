@@ -1,6 +1,4 @@
-//página de login
-
-import { useContext,useState } from 'react';
+import { useContext, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Logo from '../../assets/logo.png';
@@ -13,13 +11,14 @@ export default function Login() {
   const [mensagem, setMensagem] = useState('');
 
   const { fetchUser } = useContext(UserContext);
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setMensagem('Carregando...');
 
     try {
-      const res = await axios.post('http://localhost:3000/api/auth/login', {
+      const res = await axios.post(`${API_URL}/api/auth/login`, {
         email,
         senha,
       });
@@ -28,9 +27,9 @@ export default function Login() {
       localStorage.setItem('token', token);
       setMensagem(`Bem-vindo, ${user.nome || 'usuário'}!`);
 
-    await fetchUser();  // ← Isso atualiza o contexto
+      await fetchUser(); // Atualiza o contexto com os dados do usuário logado
+      navigate('/'); // Redireciona para a página inicial
 
-      navigate('/'); // redirecionar para a dashboard/painel
     } catch (err) {
       console.error(err);
       setMensagem(err.response?.data?.error || 'Erro ao fazer login.');
@@ -61,10 +60,7 @@ export default function Login() {
         <div className="mt-6">
           <form className="max-w-sm mx-auto" onSubmit={handleLogin}>
             <div className="mb-5">
-              <label
-                htmlFor="email"
-                className="block mb-2 text-sm font-medium text-white"
-              >
+              <label htmlFor="email" className="block mb-2 text-sm font-medium text-white">
                 Seu email
               </label>
               <input
@@ -80,10 +76,7 @@ export default function Login() {
             </div>
 
             <div className="mb-5">
-              <label
-                htmlFor="password"
-                className="block mb-2 text-sm font-medium text-white"
-              >
+              <label htmlFor="password" className="block mb-2 text-sm font-medium text-white">
                 Sua senha
               </label>
               <input
@@ -105,16 +98,12 @@ export default function Login() {
                   className="w-4 h-4 border border-gray-300 rounded-sm bg-gray-700 focus:ring-blue-600"
                 />
               </div>
-              <label
-                htmlFor="remember"
-                className="ml-2 text-sm font-medium text-gray-300"
-              >
+              <label htmlFor="remember" className="ml-2 text-sm font-medium text-gray-300">
                 Lembrar de mim
               </label>
             </div>
 
             <button
-            onClick={Login}
               type="submit"
               className="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none 
                          focus:ring-blue-300 font-medium rounded-lg text-sm w-full px-5 py-2.5 text-center"
