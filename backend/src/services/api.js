@@ -82,13 +82,13 @@ export const friendshipService = {
     return response.data;
   },
   async acceptFriendRequest(friendshipId, userId) {
-    const response = await api.put(`/api/friendship/friends/${friendshipId}/accept`, {
+    const response = await api.patch(`/api/friendship/friends/${friendshipId}/accept`, {
       userId,
     });
     return response.data;
   },
   async declineFriendRequest(friendshipId, userId) {
-    const response = await api.put(`/api/friendship/friends/${friendshipId}/decline`, {
+    const response = await api.patch(`/api/friendship/friends/${friendshipId}/decline`, {
       userId,
     });
     return response.data;

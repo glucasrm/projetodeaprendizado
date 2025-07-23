@@ -44,7 +44,9 @@ await app.register(fastifyMultipart, {
 });
 
 app.register(cors, {
-  origin: '*', // ou defina conforme necessário
+  origin: 'http://localhost:5173', // O domínio do seu frontend
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'], // <--- ADICIONE 'PATCH' AQUI
+  credentials: true,
 });
 
 // O plugin do Prisma deve ser AWAITADO para garantir que `fastify.prisma` esteja disponível.

@@ -11,7 +11,7 @@ const NotificationsPage = () => {
   // Função para extrair userId do token
   const getUserIdFromToken = () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('token');""
       if (token) {
         const decodedToken = JSON.parse(atob(token.split('.')[1]));
         return decodedToken.sub; // Supondo que o userId esteja em 'sub'
