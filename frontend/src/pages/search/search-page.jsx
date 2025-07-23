@@ -6,7 +6,9 @@ import { Avatar, AvatarFallback } from '../../components/ui/avatar';
 import { Badge } from '../../components/ui/badge';
 import { Search, UserPlus, Users, Loader2, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 import { UserContext } from '../../context/UserContext';
-import { friendshipService, userService } from '../../../../backend/src/services/api'; // Verifique este caminho, parece que está apontando para o backend
+// Importação correta dos serviços da API. Verifique se este caminho está correto para o seu projeto.
+// Assumindo que 'api.js' está em 'src/services/api.js' e este componente está em 'src/pages/SearchPage.jsx'
+import { friendshipService, userService } from '../../../../backend/src/services/api'; 
 
 const UserSearchPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -36,17 +38,12 @@ const UserSearchPage = () => {
 
     try {
       const response = await userService.searchUsers(searchQuery.trim());
-      // CORREÇÃO AQUI: Acesse response.data (que contém o array de usuários do backend)
-      // O backend retorna { message, data: [users], pagination }
-      // Então, response do userService.searchUsers já é esse objeto.
-      // O array de usuários está em response.data
       setSearchResults(response.data || []);
-      console.log('Busca realizada com sucesso. Resultados:', response.data); // Log para ver os dados reais
+      console.log('Busca realizada com sucesso. Resultados:', response.data);
     } catch (err) {
       const errorMessage = err.response?.data?.message || 'Erro ao buscar usuários. Tente novamente.';
       setError(errorMessage);
       console.error('Erro na busca:', err);
-      // REMOVIDO MOCK PARA DEPURAR O COMPORTAMENTO REAL DA API
     } finally {
       setIsLoading(false);
     }
@@ -61,17 +58,12 @@ const UserSearchPage = () => {
 
     try {
       const response = await userService.getSuggestedUsers(user.id, 5);
-      // CORREÇÃO AQUI: Acesse response.data (que contém o array de usuários do backend)
-      // O backend retorna { message, data: [users], total }
-      // Então, response do userService.getSuggestedUsers já é esse objeto.
-      // O array de usuários está em response.data
       setSuggestedUsers(response.data || []);
-      console.log('Usuários sugeridos carregados. Resultados:', response.data); // Log para ver os dados reais
+      console.log('Usuários sugeridos carregados. Resultados:', response.data);
     } catch (err) {
       const errorMessage = err.response?.data?.message || 'Erro ao carregar usuários sugeridos.';
       setError(errorMessage);
       console.error('Erro ao carregar usuários sugeridos:', err);
-      // REMOVIDO MOCK PARA DEPURAR O COMPORTAMENTO REAL DA API
     }
   }, [user?.id]);
 
@@ -85,21 +77,13 @@ const UserSearchPage = () => {
 
     try {
       console.log(`Enviando pedido de amizade: requesterId=${user.id}, receiverId=${receiverId}`);
-      // A função sendFriendRequest no backend não espera requesterId no body,
-      // ela pega do token. Apenas receiverId é necessário.
-      await friendshipService.sendFriendRequest(null, receiverId); // Passar null ou undefined para requesterId
+      await friendshipService.sendFriendRequest(null, receiverId); 
       setError('');
 
-      // ATUALIZAÇÃO DO ESTADO PARA 'pending_sent'
-      const updateList = (prevList) => prevList.map(u =>
-        u.id === receiverId ? { ...u, friendshipStatus: 'pending_sent' } : u
-      );
-
-      if (userListType === 'search') {
-        setSearchResults(updateList);
-      } else if (userListType === 'suggested') {
-        setSuggestedUsers(updateList);
-      }
+      // Após enviar, recarrega as listas para obter o status atualizado e friendshipId
+      // Isso é mais robusto do que tentar atualizar o estado manualmente aqui.
+      loadSuggestedUsers(); 
+      handleSearch(); 
 
     } catch (err) {
       const errorMessage = err.response?.data?.message || 'Erro ao enviar pedido de amizade.';
@@ -115,26 +99,13 @@ const UserSearchPage = () => {
     }
 
     try {
-      // O backend friendshipService.acceptFriendRequest espera friendshipId nos params e userId no body.
-      // Você está passando friendshipId corretamente, e o userId é pego do token no backend.
+      // friendshipId agora é o ID do registro de amizade, vindo do backend
       await friendshipService.acceptFriendRequest(friendshipId, user.id);
       setError('');
 
-      // A lógica de atualização aqui precisa ser mais robusta.
-      // Se a lista de sugestões não contém friendshipId, mas sim o ID do usuário,
-      // você precisa encontrar o usuário pelo ID e atualizar seu status.
-      // Ou, melhor ainda, recarregar as sugestões/resultados da busca.
-      if (userListType === 'search') {
-        // Se a lista de busca contém o usuário que enviou o pedido
-        setSearchResults(prev => prev.map(u =>
-          u.id === friendshipId ? { ...u, friendshipStatus: 'friends' } : u
-        ));
-      } else if (userListType === 'suggested') {
-        // Para sugestões, geralmente removemos o usuário da lista quando a amizade é aceita
-        setSuggestedUsers(prev => prev.filter(u => u.id !== friendshipId));
-      }
-      loadSuggestedUsers(); // Recarregar sugestões para refletir mudanças
-      handleSearch(); // Recarregar resultados da busca também, se houver uma query ativa
+      // Após aceitar, recarrega as listas para obter o status atualizado
+      loadSuggestedUsers(); 
+      handleSearch(); 
 
     } catch (err) {
       const errorMessage = err.response?.data?.message || 'Erro ao aceitar pedido de amizade.';
@@ -143,13 +114,11 @@ const UserSearchPage = () => {
     }
   };
 
-
   const getInitials = (nome, sobrenome) => {
     return `${nome?.charAt(0) || ''}${sobrenome?.charAt(0) || ''}`.toUpperCase();
   };
 
   const getUserDisplayName = (searchUser) => {
-    // Prioriza o username se existir, senão usa nome e sobrenome
     return searchUser.profile?.username || `${searchUser.nome} ${searchUser.sobrenome}`;
   };
 
@@ -182,19 +151,19 @@ const UserSearchPage = () => {
           </Badge>
         );
       case 'pending_received':
-        // Para 'pending_received', o targetUser.id é o ID do usuário que enviou o pedido.
-        // Você precisa do friendshipId para aceitar/recusar.
-        // Seu backend retorna friendshipStatus, mas não o friendshipId na busca de usuários.
-        // Você precisará modificar o backend para retornar o friendshipId junto com o status
-        // para que o frontend possa usá-lo aqui.
-        // Por enquanto, vamos usar targetUser.id como um placeholder, mas isso pode causar problemas
-        // se o ID da amizade for diferente do ID do usuário.
+        // Agora, targetUser.friendshipId deve estar disponível vindo do backend
+        if (!targetUser.friendshipId) {
+            console.warn(`friendshipId não encontrado para usuário ${targetUser.id} com status pending_received. Isso indica um problema no backend.`);
+            return (
+                <Badge variant="destructive">Erro Status (ID ausente)</Badge>
+            );
+        }
         return (
           <Button
             size="sm"
             variant="outline"
             className="text-green-600 border-green-600 flex items-center gap-1"
-            onClick={() => handleAcceptFriendRequest(targetUser.id, userListType)} // Temporariamente usando targetUser.id
+            onClick={() => handleAcceptFriendRequest(targetUser.friendshipId, userListType)} // <-- MUDANÇA AQUI!
           >
             <CheckCircle className="h-3 w-3" /> Aceitar
           </Button>
