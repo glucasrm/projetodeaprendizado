@@ -1,7 +1,8 @@
+// src/index.jsx (Exemplo de ajuste)
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './index.css';
-import App from './App.jsx';
+import App from './App.jsx'; // Seu App principal, se ele tiver outras coisas
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
 import Login from './pages/login/Login-page.jsx';
@@ -13,11 +14,12 @@ import GamesList from './pages/games/Games-list-page.jsx';
 import GamePage from './pages/games/Game-profile-page.jsx';
 import RankList from './pages/Ranking/Rank-games-page.jsx';
 import MainLayout from './components/navbar/MainLayout.jsx';
-import ApostadoList from './pages/apostado/Apostado-games-page.jsx';
-import ChatLayout from './pages/chat/Chat-page.jsx';
+// IMPORTANTE: ApostadoList agora vai ter a lógica de fazer aposta
+import BettingForm from './pages/apostado/Apostado-games-page.jsx';
+import ChatLayout from './pages/chat/Chat-page.jsx'; // Pode ser integrado com MatchDetails
 import OverviewPage from './pages/overview/Overview-games-page.jsx';
 import GamesTorneios from './pages/tournaments/Tournaments-games-page.jsx';
-import PerfilPage from './pages/profile/Profile-users-page.jsx'; 
+import PerfilPage from './pages/profile/Profile-users-page.jsx';
 import OverViewPerfil from './pages/overview/Overview-perfil-page.jsx'
 import AmigosList from './pages/friends/friends-list-profile-page.jsx'
 import EquipeList from './pages/teams/Teams-list-profile-page.jsx'
@@ -32,7 +34,12 @@ import PainelPrincipal from './pages/tournaments/Tournaments-panel-page';
 import AppearanceSettings from './pages/tournaments/Tournaments-appearence-page';
 import { UserProvider } from './context/UserContext';
 import NotificationsPage from './pages/notifications/notifications';
-import UserSearchPage from './pages/search/search-page'; // Importar o componente de busca
+import UserSearchPage from './pages/search/search-page';
+
+// NOVOS COMPONENTES/PÁGINAS A SEREM CRIADOS
+import MatchDetails from './pages/apostado/MatchDetails'; // Exemplo: Criar pasta 'matchmaking'
+import MediationDashboard from './components/apostado/MediationDashboard'; // Exemplo: Criar pasta 'mediacao'
+
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -49,20 +56,27 @@ createRoot(document.getElementById('root')).render(
         <Route path="/equipes-page" element={<MainLayout><EquipesPage/></MainLayout>} />
         <Route path="/carteira" element={<MainLayout><Carteira/></MainLayout>} />
         <Route path="/cadastrochave" element={<MainLayout><CadastrarChavePix/></MainLayout>} />
-        <Route path="/chat" element={<MainLayout><ChatLayout/></MainLayout>} />
+        <Route path="/chat" element={<MainLayout><ChatLayout/></MainLayout>} /> {/* ChatLayout pode ser integrado com MatchDetails */}
         <Route path="/created" element={<MainLayout><CreateOptionsGrid/></MainLayout>} />
         <Route path="/torneios/:jogo/:id/painel" element={<MainLayout><PainelPrincipal /></MainLayout>} />
         <Route path="/torneios/:jogo/:id/painel/aparencia" element={<MainLayout><AppearanceSettings /></MainLayout>} />
         <Route path="/torneios/:jogo/:id" element={<MainLayout><TorneioDetalhesPage/></MainLayout>} />
-        <Route path="/notificacoes" element={<MainLayout><NotificationsPage/></MainLayout>} />  
-        <Route path="/search" element={<MainLayout><UserSearchPage /></MainLayout>} /> {/* Nova rota para busca de usuários */}
+        <Route path="/notificacoes" element={<MainLayout><NotificationsPage/></MainLayout>} />
+        <Route path="/search" element={<MainLayout><UserSearchPage /></MainLayout>} />
+
+        {/* NOVAS ROTAS PARA MATCHMAKING E MEDIAÇÃO */}
+        {/* Rota para o painel do mediador (deve ser protegida para isAdmin) */}
+        <Route path="/mediacao" element={<MainLayout><MediationDashboard /></MainLayout>} />
+        {/* Rota para os detalhes do confronto direto (onde o chat estará) */}
+        <Route path="/confronto/:matchId" element={<MainLayout><MatchDetails /></MainLayout>} />
+
 
         {/*abas do perfil page*/}
         <Route path="/perfil" element={<MainLayout><PerfilPage /></MainLayout>}>
-        <Route index element={<OverViewPerfil />} />
-        <Route path="amigos" element={<AmigosList />} />
-        <Route path="equipes" element={<EquipeList />} />
-        <Route path="torneios-usuario" element={<TorneiosDoUsuario />} />
+          <Route index element={<OverViewPerfil />} />
+          <Route path="amigos" element={<AmigosList />} />
+          <Route path="equipes" element={<EquipeList />} />
+          <Route path="torneios-usuario" element={<TorneiosDoUsuario />} />
         </Route>
 
         <Route path="/perfil/:username" element={<MainLayout><PerfilPage /></MainLayout>}>
@@ -72,15 +86,12 @@ createRoot(document.getElementById('root')).render(
 
         {/*abas do gamepage*/}
         <Route path="/games/:slug" element={<MainLayout><GamePage/></MainLayout>}>
-        <Route index element={<OverviewPage />} />
-        <Route path="ranking" element={<RankList />} />
-        <Route path="apostado" element={<ApostadoList />} />
-        <Route path="torneios" element={<GamesTorneios />} /> {/* 👈 corrigido aqui */}
-      </Route>
+          <Route index element={<OverviewPage />} />
+          <Route path="ranking" element={<RankList />} />
+          <Route path="apostado" element={<BettingForm />} /> {/* AQUI VOCÊ VAI ADICIONAR A LÓGICA DO FORMULÁRIO DE APOSTAS */}
+          <Route path="torneios" element={<GamesTorneios />} />
+        </Route>
 
-
-        
-      
 
         {/* Rotas SEM Navbar */}
         <Route path="/login" element={<Login />} />
@@ -91,4 +102,3 @@ createRoot(document.getElementById('root')).render(
     </BrowserRouter>
   </StrictMode>
 );
-

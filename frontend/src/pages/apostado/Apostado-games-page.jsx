@@ -1,120 +1,136 @@
-//página de apostado
-import React, { useState } from 'react';
+// src/components/BettingForm.jsx (Exemplo)
+import React, { useState, useContext, useEffect } from 'react';
+import { UserContext } from '../../context/UserContext';
+import { useNavigate } from 'react-router-dom'; // Para redirecionar
 
-const ApostadoList = () => {
-  const [etapa, setEtapa] = useState(1); // 1 = Aposta/Mediar, 2 = Modalidade, 3 = Plataforma
-  const [tipoAcao, setTipoAcao] = useState(null);
-  const [modalidadeSelecionada, setModalidadeSelecionada] = useState(null);
-  const [valorSelecionado, setValorSelecionado] = useState(null);
-  
+const BettingForm = () => {
+ const { user, login, loading, isInBetQueue, joinBetQueue, leaveQueue, currentMatch, setCurrentMatch } = useContext(UserContext);
+  const navigate = useNavigate();
 
-  const modalidades = ['1v1', '2v2', '3v3', '4v4'];
-  const plataformas = ['Mobile', 'Emulador'];
-  const valores = ['R$ 2','R$ 3', 'R$5', 'R$ 10', 'R$ 20','R$ 50', 'R$ 100'];
+  const [betAmount, setBetAmount] = useState('');
+  const [modality, setModality] = useState('1v1'); // Default
+  const [platform, setPlatform] = useState('Mobile'); // Default
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
 
-  const irParaFilaMediacao = () => {
-    alert('Você entrou na fila de mediação');
-    // Aqui no futuro você pode redirecionar para uma página de mediação ou usar um componente
+  // Efeito para redirecionar quando um confronto é encontrado
+  useEffect(() => {
+    if (currentMatch && currentMatch.chatRoomId) {
+      // Limpa o currentMatch do contexto para evitar redirecionamentos múltiplos
+      // e permite que o componente de chat busque os detalhes da partida
+      setCurrentMatch(null);
+      navigate(`/confronto/${currentMatch.chatRoomId}`); // Redireciona para a tela do confronto/chat
+    }
+  }, [currentMatch, navigate, setCurrentMatch]);
+
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setMessage('');
+    setError('');
+
+    if (!user || !login) {
+      setError('Você precisa estar logado para fazer uma aposta.');
+      return;
+    }
+
+    const parsedBetAmount = parseFloat(betAmount);
+    if (isNaN(parsedBetAmount) || parsedBetAmount <= 0) {
+      setError('O valor da aposta deve ser um número positivo.');
+      return;
+    }
+    if (user.balance < parsedBetAmount) {
+        setError('Saldo insuficiente para esta aposta.');
+        return;
+    }
+
+
+    const result = await joinBetQueue(parsedBetAmount, modality, platform);
+    if (result.success) {
+      setMessage(result.message);
+      if (result.match) {
+        // Já foi redirecionado pelo useEffect acima
+      }
+    } else {
+      setError(result.message);
+    }
   };
 
-  const irParaSalaDeEspera = (plataforma) => {
-    alert(`Você entrou na sala de espera\nModo: ${modalidadeSelecionada}\nValor: ${valorSelecionado}\nPlataforma: ${plataforma}`);
-    // Aqui no futuro você pode redirecionar para uma sala de espera
+  const handleLeaveQueue = async () => {
+    setMessage('');
+    setError('');
+    const result = await leaveQueue('player');
+    if (result.success) {
+      setMessage(result.message);
+    } else {
+      setError(result.message);
+    }
   };
+
+  if (loading) {
+    return <p>Carregando...</p>;
+  }
+
+  if (!login) {
+    return <p>Por favor, faça login para acessar as apostas.</p>;
+  }
 
   return (
-    <div className="text-white">
-      {/* Etapa 1 - Apostar ou Mediar */}
-      {etapa === 1 && (
-        <div className="grid grid-cols-2 gap-4">
-          <button
-            onClick={() => {
-              setTipoAcao('Apostar');
-              setEtapa(2);
-            }}
-            className="bg-blue-800 p-4 rounded-lg border hover:border-blue-500 transition"
-          >
-            Apostar
-          </button>
-          <button
-            onClick={irParaFilaMediacao}
-            className="bg-yellow-600 p-4 rounded-lg border hover:border-yellow-500 transition"
-          >
-            Mediar
-          </button>
-        </div>
-      )}
+    <div>
+      <h2>Fazer uma Aposta Direta</h2>
+      {message && <p style={{ color: 'green' }}>{message}</p>}
+      {error && <p style={{ color: 'red' }}>{error}</p>}
 
-      {/* Etapa 2 - Modalidade */}
-      {etapa === 2 && (
-        <div className="grid grid-cols-2 gap-4 mt-4">
-          {modalidades.map((modo) => (
-            <button
-              key={modo}
-              onClick={() => {
-                setModalidadeSelecionada(modo);
-                setEtapa(3);
-              }}
-              className="bg-gray-800 p-4 rounded-lg border hover:border-blue-500 transition"
-            >
-              {modo}
-            </button>
-          ))}
-          <button
-            onClick={() => setEtapa(1)}
-            className="col-span-2 text-sm text-gray-400 underline mt-4"
-          >
-            Voltar
-          </button>
-        </div>
-      )}
+      {user && <p>Seu Saldo: R$ {user.balance ? parseFloat(user.balance).toFixed(2) : '0.00'}</p>}
 
-      {/* Etapa 3 - Valores */}
-      {etapa === 3 && (
-        <div className="grid grid-cols-2 gap-4 mt-4">
-          {valores.map((valor) => (
-            <button
-              key={valor}
-              onClick={() => {
-                setValorSelecionado(valor);
-                setEtapa(4);
-              }}
-              className="bg-gray-800 p-4 rounded-lg border hover:border-blue-500 transition"
-            >
-              {valor}
-            </button>
-          ))}
-          <button
-            onClick={() => setEtapa(1)}
-            className="col-span-2 text-sm text-gray-400 underline mt-4"
-          >
-            Voltar
-          </button>
+      {isInBetQueue ? (
+        <div>
+          <p>Você está na fila de espera para uma aposta. Aguardando oponente...</p>
+          <button onClick={handleLeaveQueue}>Sair da Fila</button>
         </div>
-      )}
-
-      {/* Etapa 4 - Plataforma */}
-      {etapa === 4 && (
-        <div className="grid grid-cols-2 gap-4 mt-4">
-          {plataformas.map((plataforma) => (
-            <button
-              key={plataforma}
-              onClick={() => irParaSalaDeEspera(plataforma)}
-              className="bg-gray-800 p-4 rounded-lg border hover:border-green-500 transition"
+      ) : (
+        <form onSubmit={handleSubmit}>
+          <div>
+            <label htmlFor="betAmount">Valor da Aposta:</label>
+            <input
+              type="number"
+              id="betAmount"
+              value={betAmount}
+              onChange={(e) => setBetAmount(e.target.value)}
+              min="0.01"
+              step="0.01"
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="modality">Modalidade:</label>
+            <select
+              id="modality"
+              value={modality}
+              onChange={(e) => setModality(e.target.value)}
             >
-              {plataforma}
-            </button>
-          ))}
-          <button
-            onClick={() => setEtapa(2)}
-            className="col-span-2 text-sm text-gray-400 underline mt-4"
-          >
-            Voltar
-          </button>
-        </div>
+              <option value="1v1">1x1</option>
+              <option value="2v2">2x2</option>
+              <option value="3v3">3x3</option>
+              <option value="4v4">4x4</option>
+            </select>
+          </div>
+          <div>
+            <label htmlFor="platform">Plataforma:</label>
+            <select
+              id="platform"
+              value={platform}
+              onChange={(e) => setPlatform(e.target.value)}
+            >
+              <option value="Mobile">Mobile</option>
+              <option value="Emulador">Emulador</option>
+            </select>
+          </div>
+          <button type="submit">Entrar na Fila</button>
+        </form>
       )}
     </div>
   );
 };
 
-export default ApostadoList;
+export default BettingForm;

@@ -1,4 +1,7 @@
-// index.js
+// C:\Users\lucas\Desktop\torneio\ggl\backend\index.js
+
+import 'dotenv/config'; // <-- ADICIONE ESTA LINHA AQUI, NO TOPO!
+
 import app from './src/app.js';
 
 const start = async () => {

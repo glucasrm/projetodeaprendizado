@@ -1,5 +1,8 @@
+// schema.prisma
+
 generator client {
   provider = "prisma-client-js"
+  output   = "../backend/node_modules/.prisma/client"
 }
 
 datasource db {
@@ -8,28 +11,42 @@ datasource db {
 }
 
 model User {
-  id              String        @id @default(uuid())
-  nome            String
-  sobrenome       String
-  email           String        @unique
-  telefone        String
-  passwordHash    String
-  dataNascimento  DateTime?
-  genero          String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  profile         Profile?
-  socialLinks     SocialLink[]  // <-- Relacionamento 1:N (Um usuário pode ter várias redes)
+  id                      String              @id @default(uuid())
+  nome                    String
+  sobrenome               String
+  email                   String              @unique
+  telefone                String
+  passwordHash            String
+  dataNascimento          DateTime?
+  genero                  String?
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+  profile                 Profile?
+  socialLinks             SocialLink[]
+  isAdmin                 Boolean             @default(false) // Adicionado para identificar mediadores
+  balance                 Decimal             @default(0.00) @db.Decimal(10, 2) // Adicionado para saldo de apostas
 
-    // Relacionamentos de amizade
-  sentFriendRequests     Friend[] @relation("UserFriends")
-  receivedFriendRequests Friend[] @relation("FriendOf")
-  
-  teams     TeamMember[]
-  tournamentsCreated Tournament[]
-  notifications Notification[]
-  bets        Bet[]       // Relacionamento reverso
+  // Relacionamentos de amizade
+  sentFriendRequests      Friend[]            @relation("UserFriends")
+  receivedFriendRequests  Friend[]            @relation("FriendOf")
 
+  teams                   TeamMember[]
+  tournamentsCreated      Tournament[]
+  notifications           Notification[]
+
+  // Novos relacionamentos para o sistema de apostas de confronto direto
+  directBets              DirectBet[]         @relation("PlayerDirectBets")
+  matchesAsPlayer1        Match[]             @relation("Player1")
+  matchesAsPlayer2        Match[]             @relation("Player2")
+  matchesAsMediator       Match[]             @relation("Mediator")
+  mediationRequests       MediationRequest[]
+  conversations           Conversation[]      @relation("Participants")
+  messages                Message[]           // Mensagens enviadas em conversas
+
+  // Seu modelo Bet existente para torneios
+  tournamentBets          TournamentBet[]     @relation("TournamentBetsUser")
+
+  @@map("users")
 }
 
 model Profile {
@@ -39,46 +56,54 @@ model Profile {
   avatar   String?
   banner   String?
   bio      String?
+
+  @@map("profiles")
 }
 
 model SocialLink {
-  id        String   @id @default(uuid())
-  userId    String
-  platform  String   // Exemplo: 'discord', 'instagram', 'youtube', 'facebook'
-  url       String
-  user      User     @relation(fields: [userId], references: [id])
+  id       String @id @default(uuid())
+  userId   String
+  platform String
+  url      String
+  user     User   @relation(fields: [userId], references: [id])
+
+  @@map("social_links")
 }
 
 model Friend {
-  id          String   @id @default(uuid())
-  requester   User     @relation("UserFriends", fields: [requesterId], references: [id])
-  requesterId String
-  receiver    User     @relation("FriendOf", fields: [receiverId], references: [id])
-  receiverId  String
-  status      String   // "pending", "accepted", "declined"
-  createdAt   DateTime @default(now())
+  id             String   @id @default(uuid())
+  requester      User     @relation("UserFriends", fields: [requesterId], references: [id])
+  requesterId    String
+  receiver       User     @relation("FriendOf", fields: [receiverId], references: [id])
+  receiverId     String
+  status         String   // "pending", "accepted", "declined"
+  createdAt      DateTime @default(now())
 
   @@unique([requesterId, receiverId])
+  @@map("friends")
 }
 
 model Tournament {
-  id          String   @id @default(uuid())
-  name        String
-  game        String
-  createdBy   User     @relation(fields: [createdById], references: [id])
-  createdById String
-  participants Team[]
-  startDate   DateTime
-    bets        Bet[]       // Relacionamento reverso
+  id                String          @id @default(uuid())
+  name              String
+  game              String
+  createdBy         User            @relation(fields: [createdById], references: [id])
+  createdById       String
+  participants      Team[]
+  startDate         DateTime
+  tournamentBets    TournamentBet[] // Relacionamento reverso
 
+  @@map("tournaments")
 }
 
 model Team {
-  id        String        @id @default(uuid())
-  name      String
-  members   TeamMember[]
-  tournament Tournament?  @relation(fields: [tournamentId], references: [id])
+  id           String       @id @default(uuid())
+  name         String
+  members      TeamMember[]
+  tournament   Tournament?  @relation(fields: [tournamentId], references: [id])
   tournamentId String?
+
+  @@map("teams")
 }
 
 model TeamMember {
@@ -87,28 +112,115 @@ model TeamMember {
   userId String
   team   Team   @relation(fields: [teamId], references: [id])
   teamId String
+
+  @@map("team_members")
 }
 
-model Bet {
-  id          String   @id @default(uuid())
-  user        User     @relation(fields: [userId], references: [id])
-  userId      String
-  tournament  Tournament @relation(fields: [tournamentId], references: [id])
+// Seu modelo Bet existente, renomeado para TournamentBet para clareza
+model TournamentBet {
+  id           String     @id @default(uuid())
+  user         User       @relation("TournamentBetsUser", fields: [userId], references: [id])
+  userId       String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id])
   tournamentId String
-  amount      Float
-  createdAt   DateTime @default(now())
+  amount       Decimal    @db.Decimal(10, 2) // Usando Decimal para precisão
+  createdAt    DateTime   @default(now())
 
+  @@map("tournament_bets")
 }
 
 model Notification {
   id        String   @id @default(uuid())
-  type      String   // "friend_invite", "friend_accepted", "friend_declined", "team_invite", "tournament_invite", "tournament_alert", "bet_alert"
+  type      String
   content   String
-  link      String   // URL ou rota para redirecionar
+  link      String
   user      User     @relation(fields: [userId], references: [id])
   userId    String
-  read      Boolean  @default(false)  // Corrigido de "Read" para "read" (convenção camelCase)
+  read      Boolean  @default(false)
   createdAt DateTime @default(now())
-  message   String
+  message   String // Mantido, mas 'content' parece ter a mesma função
+  // Adicionar coluna `matchId` para vincular notificações a confrontos
+  matchId   String?
+  match     Match?   @relation(fields: [matchId], references: [id])
+
+  @@map("notifications")
 }
 
+// --- Novos modelos para o sistema de apostas de confronto direto ---
+
+model DirectBet {
+  id              String       @id @default(uuid())
+  playerId        String
+  player          User         @relation("PlayerDirectBets", fields: [playerId], references: [id])
+  betAmount       Decimal      @db.Decimal(10, 2)
+  modality        String       // '1v1', '2v2', '3v3', '4v4'
+  platform        String       // 'Mobile', 'Emulador'
+  status          String       @default("WAITING_OPPONENT") // WAITING_OPPONENT, MATCHED, IN_PROGRESS, COMPLETED, CANCELED
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  matchId         String?
+  match           Match?       @relation(fields: [matchId], references: [id])
+
+  @@map("direct_bets") // Renomeado para evitar conflito com 'bets' existente
+}
+
+model Match {
+  id                String             @id @default(uuid())
+  player1Id         String
+  player1           User               @relation("Player1", fields: [player1Id], references: [id])
+  player2Id         String
+  player2           User               @relation("Player2", fields: [player2Id], references: [id])
+  mediatorId        String?
+  mediator          User?              @relation("Mediator", fields: [mediatorId], references: [id])
+  betAmount         Decimal            @db.Decimal(10, 2)
+  modality          String
+  platform          String
+  status            String             @default("PENDING_MEDIATION") // PENDING_MEDIATION, IN_PROGRESS, COMPLETED, CANCELED, FINISHED
+  chatRoomId        String?            @unique // ID para o chat
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  result            String?            // Ex: "player1_won", "player2_won", "draw"
+
+  directBets        DirectBet[]
+  conversation      Conversation?
+  notifications     Notification[]
+
+  @@map("matches")
+}
+
+model MediationRequest {
+  id          String   @id @default(uuid())
+  mediatorId  String   @unique // Um mediador só pode ter 1 request ativo
+  mediator    User     @relation(fields: [mediatorId], references: [id])
+  status      String   @default("AVAILABLE") // AVAILABLE, IN_MEDIATION, OFFLINE
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("mediation_requests")
+}
+
+model Conversation {
+  id            String       @id @default(uuid())
+  matchId       String       @unique
+  match         Match        @relation(fields: [matchId], references: [id])
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  participants  User[]       @relation("Participants")
+  messages      Message[]
+
+  @@map("conversations")
+}
+
+model Message {
+  id            String       @id @default(uuid())
+  conversationId String
+  conversation  Conversation @relation(fields: [conversationId], references: [id])
+  senderId      String
+  sender        User         @relation(fields: [senderId], references: [id])
+  content       String
+  createdAt     DateTime     @default(now())
+
+  @@map("messages")
+}

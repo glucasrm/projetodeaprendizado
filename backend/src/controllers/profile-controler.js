@@ -12,8 +12,6 @@ const pump = util.promisify(pipeline);
  * Salva arquivo no disco local
  */
 async function saveFile(part, folder = 'uploads') {
-
-
   const ext = path.extname(part.filename);
   const filename = `${randomUUID()}${ext}`;
   const uploadDir = path.resolve(`./public/${folder}`);
@@ -27,42 +25,46 @@ async function saveFile(part, folder = 'uploads') {
 }
 
 export async function profileRoutes(app) {
-    // Rota pública de perfil por username
+  // Rota pública de perfil por username
   app.get('/public/:encodedUsername', async (request, reply) => {
-  const { encodedUsername } = request.params;
+    const { encodedUsername } = request.params;
 
-  // Decode Base64
-  let username;
-  try {
-    username = Buffer.from(encodedUsername, 'base64').toString('utf8');
-  } catch (error) {
-    return reply.status(400).send({ message: 'Username inválido na URL.' });
-  }
+    // Decode Base64
+    let username;
+    try {
+      username = Buffer.from(encodedUsername, 'base64').toString('utf8');
+    } catch (error) {
+      return reply.status(400).send({ message: 'Username inválido na URL.' });
+    }
 
-  // Buscar o perfil pelo username decodificado
-  const profile = await app.prisma.profile.findUnique({
-    where: { username },
-    select: { // Adicionando select para garantir que userId seja incluído
-      userId: true, // <-- Adicionado para garantir que o ID do usuário seja retornado
-      username: true,
-      avatar: true,
-      banner: true,
-      bio: true,
-      user: {
-        select: {
-          nome: true,
-          socialLinks: true,
+    // Buscar o perfil pelo username decodificado
+    const profile = await app.prisma.profile.findUnique({
+      where: { username },
+      select: { // Adicionando select para garantir que userId seja incluído
+        userId: true, // <-- Adicionado para garantir que o ID do usuário seja retornado
+        username: true,
+        avatar: true,
+        banner: true,
+        bio: true,
+        user: {
+          select: {
+            nome: true,
+            socialLinks: true,
+            // Adicione balance e isAdmin aqui se o perfil público precisar dessas informações.
+            // Geralmente, o perfil público não exibe saldo ou status de admin.
+            // balance: true,
+            // isAdmin: true,
+          },
         },
       },
-    },
+    });
+
+    if (!profile) {
+      return reply.status(404).send({ message: 'Perfil não encontrado' });
+    }
+
+    return reply.send(profile);
   });
-
-  if (!profile) {
-    return reply.status(404).send({ message: 'Perfil não encontrado' });
-  }
-
-  return reply.send(profile);
-});
 
 
 
@@ -80,38 +82,40 @@ export async function profileRoutes(app) {
       }
 
       try {
-        // CORREÇÃO: Buscar o PERFIL pelo userId e garantir que o userId seja selecionado.
-        const profile = await request.server.prisma.profile.findUnique({
-          where: { userId: userId },
-          select: {
-            userId: true, // <-- ESSA LINHA É A CHAVE: Inclui o ID do usuário
-            username: true,
-            avatar: true,
-            banner: true,
-            bio: true,
-            // Você pode incluir o relacionamento com 'User' aqui se precisar de mais dados do usuário principal
-            // user: {
-            //   select: {
-            //     nome: true,
-            //     email: true,
-            //   }
-            // }
+        // AJUSTE AQUI: Buscar o usuário diretamente para obter balance e isAdmin,
+        // e incluir o perfil relacionado.
+        const user = await request.server.prisma.user.findUnique({
+          where: { id: userId },
+          include: {
+            profile: { // Inclui o perfil do usuário
+              select: {
+                username: true,
+                avatar: true,
+                banner: true,
+                bio: true,
+              }
+            }
           },
         });
 
-        if (!profile) {
-          // Se o perfil não for encontrado, retorne um objeto com o userId para o frontend
-          return reply.status(200).send({
-            userId: userId, // Garante que o ID do usuário sempre seja retornado
-            username: null,
-            avatar: null,
-            banner: null,
-            bio: null,
-          });
+        if (!user) {
+          // Isso não deve acontecer se o JWT for válido e o user ID existir,
+          // mas é um bom fallback.
+          return reply.status(404).send({ error: 'Usuário não encontrado.' });
         }
 
-        // Retorna o objeto do perfil que agora inclui o userId
-        return reply.send(profile);
+        // Retorna os dados combinados do usuário e do perfil
+        return reply.status(200).send({
+          userId: user.id,
+          username: user.profile?.username || null, // Se o perfil não foi criado, username será null
+          avatar: user.profile?.avatar || null,
+          banner: user.profile?.banner || null,
+          bio: user.profile?.bio || null,
+          balance: user.balance, // <-- AGORA INCLUÍDO!
+          isAdmin: user.isAdmin, // <-- AGORA INCLUÍDO!
+          nome: user.nome, // Exemplo, se você quiser o nome também
+          socialLinks: user.socialLinks // Exemplo, se você quiser os links sociais
+        });
       } catch (error) {
         console.error('Erro ao buscar perfil:', error);
         return reply.status(500).send({ error: 'Erro interno do servidor ao buscar perfil.' });

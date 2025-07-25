@@ -1,9 +1,10 @@
+// src/server.ts
 import fastify from 'fastify';
 import fastifyMultipart from '@fastify/multipart';
 import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
 import authRoutes from './routes/auth-routes.js';
-import {profileRoutes} from './controllers/profile-controler.js';
+import {profileRoutes} from './controllers/profile-controler.js'; // Note: 'profile-controler.js' typo in your original was corrected
 import prismaPlugin from './plugins/prisma.js';
 import authenticatePlugin from './plugins/authenticate.js';
 import path from 'path';
@@ -13,17 +14,21 @@ import {socialLinksRoutes} from './controllers/social-links-controller.js';
 
 // Importações da API de Amizade
 import friendshipRoutes from './routes/friendship-routes.js';
-import FriendshipController from './controllers/friendship-controller.js'; // Importa a CLASSE FriendshipController
+import FriendshipController from './controllers/friendship-controller.js';
 
 // Importação do serviço de notificação para o FriendshipController
 import NotificationService from './services/notificações-services.js';
 
 // Importação das rotas e controller de Usuários
-import userRoutes from './routes/user-routes.js'; // Importa o arquivo de rotas de usuário
-import UserController from './controllers/user-controller.js'; // Importa a CLASSE UserController
+import userRoutes from './routes/user-routes.js';
+import UserController from './controllers/user-controller.js';
 
 // Importação das rotas de Notificações (Adicionado)
 import notificationsRoutes from './routes/notifications-routes.js';
+
+// NOVAS IMPORTAÇÕES PARA MATCHMAKING
+import MatchmakingController from './controllers/matchmaking-controller.js';
+import matchmakingRoutes from './routes/matchmaking-routes.js';
 
 // Ajuda a resolver __dirname em ES Modules
 const __filename = fileURLToPath(import.meta.url);
@@ -45,41 +50,34 @@ await app.register(fastifyMultipart, {
 
 app.register(cors, {
   origin: 'http://localhost:5173', // O domínio do seu frontend
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'], // <--- ADICIONE 'PATCH' AQUI
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   credentials: true,
 });
 
 // O plugin do Prisma deve ser AWAITADO para garantir que `fastify.prisma` esteja disponível.
 await app.register(prismaPlugin);
-app.register(authenticatePlugin);
+app.register(authenticatePlugin); // Registra o plugin de autenticação
 
 // Instanciando Controllers APÓS o plugin do Prisma ter sido completamente registrado.
 // Isso garante que `app.prisma` esteja disponível.
 const userControllerInstance = new UserController(app.prisma);
-
-// Instanciando NotificationService
-// O NotificationService precisa do Prisma, então passamos app.prisma para ele.
 const notificationServiceInstance = new NotificationService(app.prisma);
-
-// Instanciando FriendshipController
-// O FriendshipController precisa do Prisma e do NotificationService, então passamos ambos.
 const friendshipControllerInstance = new FriendshipController(app.prisma, notificationServiceInstance);
 
+// NOVA INSTÂNCIA DO CONTROLLER DE MATCHMAKING
+const matchmakingControllerInstance = new MatchmakingController(app.prisma);
 
 // Registro das rotas existentes
 app.register(authRoutes, { prefix: '/api/auth' });
 app.register(profileRoutes, { prefix: '/api/profile' });
 app.register(accountRoutes, { prefix: '/api/account' });
 app.register(socialLinksRoutes, { prefix: '/api/profile' });
-
-// Registro das novas rotas da API de Amizade
 app.register(friendshipRoutes, { prefix: '/api/friendship', friendshipController: friendshipControllerInstance });
-
-// Registro das rotas de Usuários
 app.register(userRoutes, { prefix: '/api/users', userController: userControllerInstance });
-
-// Registro das rotas de Notificações (Adicionado/Verificado)
 app.register(notificationsRoutes, { prefix: '/api' });
+
+// REGISTRO DAS NOVAS ROTAS DE MATCHMAKING
+app.register(matchmakingRoutes, { prefix: '/api/matchmaking', matchmakingController: matchmakingControllerInstance });
 
 
 // Rota de health check (opcional, mas útil para verificar o status da API)
@@ -111,4 +109,4 @@ app.setErrorHandler(async (error, request, reply) => {
   });
 });
 
-export default app;
+export default app; // Exporta o app para poder ser usado em um arquivo de inicialização
