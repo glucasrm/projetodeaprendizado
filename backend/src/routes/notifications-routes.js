@@ -3,7 +3,8 @@
 import {
   listNotifications,
   markNotificationAsRead,
-  markAllNotificationsAsRead
+  markAllNotificationsAsRead,
+  markNotificationsAsReadBatch
 } from '../controllers/notifications-controller.js';
 // REMOVIDO: import verifyJWT from '../middlewares/verify-jwt.js';
 
@@ -12,4 +13,6 @@ export default async function notificationsRoutes(app) {
   app.get('/api/notifications', { preHandler: [app.authenticate] }, listNotifications);
   app.patch('/api/notifications/:id/read', { preHandler: [app.authenticate] }, markNotificationAsRead);
   app.patch('/api/notifications/read-all', { preHandler: [app.authenticate] }, markAllNotificationsAsRead);
+  // Para marcar um array de IDs específico (ideal para o frontend)
+    app.post('/api/notifications/mark-read-batch', { preHandler: [app.authenticate] }, markNotificationsAsReadBatch);
 }

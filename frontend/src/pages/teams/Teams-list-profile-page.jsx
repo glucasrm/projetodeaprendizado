@@ -1,6 +1,6 @@
 //página de lista de teams no perfil do usuário
 import { useContext } from 'react';
-import { UserContext } from '../../components/navbar/MainLayout';
+import { UserContext } from '../../context/UserContext';
 import { Button } from "../../components/ui/button";
 import AmigoCard from '../../components/friends/Friend-teams-Card';
 

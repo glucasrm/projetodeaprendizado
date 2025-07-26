@@ -1,20 +1,21 @@
-import React, { createContext, useState } from 'react';
+// src/components/MainLayout.jsx
+import React from 'react';
 import Navbar from './Navbar';
-
-// Criar o contexto
-export const UserContext = createContext();
+// IMPORTANTE: Não importe UserContext aqui para criar um novo.
+// Importe UserProvider para envolver os children.
+import { UserProvider } from '../../context/UserContext'; // <--- CORREÇÃO AQUI
 
 const MainLayout = ({ children }) => {
-  const [user, setUser] = useState(null);
-
-  return (
-    <UserContext.Provider value={{ user, setUser }}>
-      <div className="flex flex-col min-h-screen">
-        <Navbar />
-        <main className="flex-grow">{children}</main>
-      </div>
-    </UserContext.Provider>
-  );
+    // Não precisamos de user/setUser states aqui, eles serão fornecidos pelo UserProvider
+    return (
+        // Use UserProvider para envolver a aplicação
+        <UserProvider> {/* <--- CORREÇÃO AQUI */}
+            <div className="flex flex-col min-h-screen">
+                <Navbar />
+                <main className="flex-grow">{children}</main>
+            </div>
+        </UserProvider>
+    );
 };
 
 export default MainLayout;

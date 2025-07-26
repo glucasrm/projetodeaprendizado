@@ -1,6 +1,6 @@
 // src/controllers/notifications-controller.js
 import prisma from '../lib/prisma.js';
-
+import { z } from 'zod';
 /**
  * Lista notificações do usuário logado
  */
@@ -71,4 +71,29 @@ export async function markAllNotificationsAsRead(request, reply) {
   });
 
   return reply.send({ success: true });
+  
+}export async function markNotificationsAsReadBatch(request, reply) {
+    const userId = request.user.sub;
+    const { notificationIds } = z.object({
+        notificationIds: z.array(z.string().uuid()),
+    }).parse(request.body); // Valida o array de IDs
+
+    try {
+        const updatedNotifications = await prisma.notification.updateMany({
+            where: {
+                id: {
+                    in: notificationIds, // IDs na lista fornecida
+                },
+                userId: userId, // Garante que o usuário só possa marcar suas próprias
+                read: false, // Opcional: só marca as que não estão lidas
+            },
+            data: {
+                read: true,
+            },
+        });
+        return reply.send({ count: updatedNotifications.count, success: true, message: 'Notificações marcadas como lidas.' });
+    } catch (error) {
+        console.error('Erro ao marcar notificações em lote como lidas:', error);
+        return reply.status(500).send({ error: 'Erro ao marcar notificações em lote como lidas.' });
+    }
 }

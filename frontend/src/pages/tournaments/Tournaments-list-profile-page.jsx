@@ -1,5 +1,5 @@
 import { useContext } from 'react';
-import { UserContext } from '../../components/navbar/MainLayout';
+import { UserContext } from '../../context/UserContext';
 import { Button } from '../../components/ui/button';
 import TorneioCard from '../../components/tournaments/Tournaments-Card';
 
