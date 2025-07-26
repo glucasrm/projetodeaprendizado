@@ -8,7 +8,7 @@ class FriendshipController {
   // Enviar convite de amizade
   async sendFriendRequest(request, reply) {
     // CORREÇÃO AQUI: Usando request.user.id para consistência
-    const requesterId = request.user.id;
+    const requesterId = request.user.sub;
     const { receiverId } = request.body;
 
     console.log('DEBUG (FriendshipController.sendFriendRequest): requesterId (do JWT):', requesterId);
@@ -125,7 +125,7 @@ class FriendshipController {
     try {
       const { friendshipId } = request.params;
       // CORREÇÃO AQUI: Usando request.user.id para consistência
-      const authenticatedUserId = request.user.id;
+      const authenticatedUserId = request.user.sub;
 
       const friendship = await this.prisma.friend.findUnique({
         where: { id: friendshipId },
@@ -201,7 +201,7 @@ class FriendshipController {
     try {
       const { friendshipId } = request.params;
       // CORREÇÃO AQUI: Usando request.user.id para consistência
-      const authenticatedUserId = request.user.id;
+      const authenticatedUserId = request.user.sub;
 
       const friendship = await this.prisma.friend.findUnique({
         where: { id: friendshipId },
@@ -277,7 +277,7 @@ class FriendshipController {
     try {
       const { userId } = request.params;
       // CORREÇÃO AQUI: Usando request.user.id para consistência
-      if (request.user.id !== userId) {
+      if (request.user.sub !== userId) {
         return reply.status(403).send({
           error: 'Acesso negado',
           message: 'Você só pode listar seus próprios amigos.'
@@ -350,7 +350,7 @@ class FriendshipController {
     try {
       const { userId } = request.params;
       // CORREÇÃO AQUI: Usando request.user.id para consistência
-      if (request.user.id !== userId) {
+      if (request.user.sub !== userId) {
         return reply.status(403).send({
           error: 'Acesso negado',
           message: 'Você só pode listar seus próprios convites pendentes.'
@@ -440,7 +440,7 @@ class FriendshipController {
     try {
       const { friendshipId } = request.params;
       // CORREÇÃO AQUI: Usando request.user.id para consistência
-      const authenticatedUserId = request.user.id;
+      const authenticatedUserId = request.user.sub;
 
       const friendship = await this.prisma.friend.findUnique({
         where: { id: friendshipId },

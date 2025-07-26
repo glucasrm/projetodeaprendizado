@@ -73,7 +73,7 @@ export async function profileRoutes(app) {
     '/',
     { preHandler: [app.authenticate] }, // Protege a rota com autenticação
     async (request, reply) => {
-      const userId = request.user.id; // Obtém o ID do usuário autenticado do token
+      const userId = request.user.sub; // Obtém o ID do usuário autenticado do token
 
       if (!userId) {
         // Esta validação é redundante se o preHandler app.authenticate funcionar corretamente,
@@ -148,7 +148,7 @@ export async function profileRoutes(app) {
         }
       }
 
-      const userId = request.user.id; // Obtém o ID do usuário autenticado
+      const userId = request.user.sub; // Obtém o ID do usuário autenticado
 
       // Validação do Username
       if (!username || !username.trim()) {

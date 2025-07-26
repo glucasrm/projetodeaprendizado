@@ -11,8 +11,8 @@ import {
 export default async function notificationsRoutes(app) {
   // Usando app.authenticate como preHandler
   app.get('/notifications', { preHandler: [app.authenticate] }, listNotifications);
-  app.patch('/api/notifications/:id/read', { preHandler: [app.authenticate] }, markNotificationAsRead);
-  app.patch('/api/notifications/read-all', { preHandler: [app.authenticate] }, markAllNotificationsAsRead);
+  app.patch('/notifications/:id/read', { preHandler: [app.authenticate] }, markNotificationAsRead);
+  app.patch('/notifications/read-all', { preHandler: [app.authenticate] }, markAllNotificationsAsRead);
   // Para marcar um array de IDs específico (ideal para o frontend)
-    app.post('/api/notifications/mark-read-batch', { preHandler: [app.authenticate] }, markNotificationsAsReadBatch);
+    app.post('/notifications/mark-read-batch', { preHandler: [app.authenticate] }, markNotificationsAsReadBatch);
 }

@@ -47,7 +47,7 @@ class UserController {
   async searchUsers(request, reply) {
     try {
       const { query, limit = 10, page = 1 } = request.query;
-      const currentUserId = request.user?.id;
+      const currentUserId = request.user?.sub;
 
       console.log('DEBUG (UserController.searchUsers): Início da busca');
       console.log('DEBUG (UserController.searchUsers): currentUserId (do token):', currentUserId, 'Tipo:', typeof currentUserId);
@@ -165,7 +165,7 @@ class UserController {
   async getUserById(request, reply) {
     try {
       const { userId } = request.params;
-      const currentUserId = request.user?.id;
+      const currentUserId = request.user?.sub;
 
       console.log('DEBUG (UserController.getUserById): Início da busca');
       console.log('DEBUG (UserController.getUserById): userId (da URL):', userId, 'Tipo:', typeof userId);
@@ -230,7 +230,7 @@ class UserController {
     try {
       const { userId } = request.params;
       const { limit = 10 } = request.query;
-      const currentUserId = request.user?.id;
+      const currentUserId = request.user?.sub;
 
       console.log('DEBUG (UserController.getSuggestedUsers): Início da busca');
       console.log('DEBUG (UserController.getSuggestedUsers): userId (da URL):', userId, 'Tipo:', typeof userId);

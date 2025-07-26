@@ -5,6 +5,7 @@ import { z } from 'zod';
  * Lista notificações do usuário logado
  */
 export async function listNotifications(request, reply) {
+   console.log('User ID from token:', request.user?.sub);
   const userId = request.user.sub;
 
   const notifications = await prisma.notification.findMany({
