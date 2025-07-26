@@ -17,7 +17,7 @@ import friendshipRoutes from './routes/friendship-routes.js';
 import FriendshipController from './controllers/friendship-controller.js';
 
 // Importação do serviço de notificação para o FriendshipController
-import NotificationService from './services/notificações-services.js';
+import NotificationService from './services/notification-services.js';
 
 // Importação das rotas e controller de Usuários
 import userRoutes from './routes/user-routes.js';

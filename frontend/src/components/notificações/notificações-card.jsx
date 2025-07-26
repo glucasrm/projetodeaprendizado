@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Bell, Check, X, Trash2, ExternalLink } from 'lucide-react';
-import { notificationService } from '../../../../backend/src/services/notificações-services';
+import { notificationService } from '../../../../backend/src/services/notification-services';
 
 const NotificationCard = ({ notification, onUpdate, currentUserId }) => {
   const [isLoading, setIsLoading] = useState(false);
