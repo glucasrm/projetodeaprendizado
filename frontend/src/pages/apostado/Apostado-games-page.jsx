@@ -1,28 +1,29 @@
-// src/components/BettingForm.jsx (Exemplo)
+// src/components/BettingForm.jsx
+
 import React, { useState, useContext, useEffect } from 'react';
 import { UserContext } from '../../context/UserContext';
-import { useNavigate } from 'react-router-dom'; // Para redirecionar
+import { useNavigate } from 'react-router-dom';
 
 const BettingForm = () => {
     const { user, login, loading, isInBetQueue, joinBetQueue, leaveQueue, currentMatch, setCurrentMatch } = useContext(UserContext);
     const navigate = useNavigate();
 
-    const [betAmount, setBetAmount] = useState('');
-    const [modality, setModality] = useState('1v1'); // Default
-    const [platform, setPlatform] = useState('Mobile'); // Default
+    // Valores pré-definidos para as apostas
+    const BET_OPTIONS = [2, 3, 5, 7, 10, 15, 20, 50, 100];
+
+    // O valor inicial pode ser o primeiro da lista ou null/vazio para forçar a seleção
+    const [betAmount, setBetAmount] = useState(BET_OPTIONS[0].toString()); // Converte para string para o select
+    const [modality, setModality] = useState('1v1');
+    const [platform, setPlatform] = useState('Mobile');
     const [message, setMessage] = useState('');
     const [error, setError] = useState('');
 
-    // Efeito para redirecionar quando um confronto é encontrado
     useEffect(() => {
         if (currentMatch && currentMatch.chatRoomId) {
-            // Limpa o currentMatch do contexto para evitar redirecionamentos múltiplos
-            // e permite que o componente de chat busque os detalhes da partida
             setCurrentMatch(null);
-            navigate(`/confronto/${currentMatch.chatRoomId}`); // Redireciona para a tela do confronto/chat
+            navigate(`/confronto/${currentMatch.chatRoomId}`);
         }
     }, [currentMatch, navigate, setCurrentMatch]);
-
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -35,8 +36,9 @@ const BettingForm = () => {
         }
 
         const parsedBetAmount = parseFloat(betAmount);
+        // A validação de NaN e <= 0 ainda é boa, mas menos provável com opções pré-definidas
         if (isNaN(parsedBetAmount) || parsedBetAmount <= 0) {
-            setError('O valor da aposta deve ser um número positivo.');
+            setError('Por favor, selecione um valor de aposta válido.');
             return;
         }
         if (user.balance < parsedBetAmount) {
@@ -44,11 +46,9 @@ const BettingForm = () => {
             return;
         }
 
-
         const result = await joinBetQueue(parsedBetAmount, modality, platform);
         if (result.success) {
             setMessage(result.message);
-            // Redirecionamento já acontece no useEffect
         } else {
             setError(result.message);
         }
@@ -101,16 +101,21 @@ const BettingForm = () => {
                 <form onSubmit={handleSubmit} className="flex flex-col space-y-6">
                     <div className="flex flex-col">
                         <label htmlFor="betAmount" className="mb-2 text-lg font-medium text-gray-300">Valor da Aposta:</label>
-                        <input
-                            type="number"
+                        {/* SUBSTITUÍDO O INPUT POR SELECT */}
+                        <select
                             id="betAmount"
                             value={betAmount}
                             onChange={(e) => setBetAmount(e.target.value)}
-                            min="0.01"
-                            step="0.01"
                             required
-                            className="p-3 bg-gray-700 border border-gray-600 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition duration-200"
-                        />
+                            className="p-3 bg-gray-700 border border-gray-600 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition duration-200 appearance-none"
+                        >
+                            {/* Mapeia as opções da lista BET_OPTIONS */}
+                            {BET_OPTIONS.map((amount) => (
+                                <option key={amount} value={amount.toString()}>
+                                    R$ {amount.toFixed(2)}
+                                </option>
+                            ))}
+                        </select>
                     </div>
                     <div className="flex flex-col">
                         <label htmlFor="modality" className="mb-2 text-lg font-medium text-gray-300">Modalidade:</label>
