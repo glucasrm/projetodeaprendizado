@@ -85,7 +85,7 @@ const Navbar = () => {
 
 
                             {/* Avatar + Username */}
-                            <div className="flex items-center space-x-2 cursor-pointer" onClick={() => handleNavigate(`/perfil/${encodedUsername}`)}
+                            <div className="flex items-center space-x-2 cursor-pointer" onClick={() => handleNavigate(`/perfil`)}
                             >
                                 <img
                                     src={avatarUrl}
