@@ -32,7 +32,7 @@ const AmigosList = () => {
       const formattedFriends = response.data.map(item => ({
         id: item.friend.id,
         friendshipId: item.friendshipId, // Mantém o friendshipId se precisar para remover amizade
-        name: item.friend.profile?.username || `${item.friend.nome} ${item.friend.sobrenome}`, // Prioriza username
+        username: item.friend.profile?.username || `${item.friend.username}`, // Prioriza username
         avatar: item.friend.profile?.avatar || `https://placehold.co/100x100/aabbcc/ffffff?text=${item.friend.profile?.username?.charAt(0) || item.friend.nome?.charAt(0) || '?'}` // Fallback para avatar
       }));
       setFriends(formattedFriends);

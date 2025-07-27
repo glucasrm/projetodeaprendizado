@@ -9,11 +9,11 @@ class MatchmakingController {
   async joinBetQueue(request, reply) {
     // Certifique-se de que o usuário está autenticado
     // O Fastify anexa o usuário autenticado em `request.user` após `preHandler: [fastify.authenticate]`
-    if (!request.user || !request.user.id) {
+    if (!request.user || !request.user.sub) {
       return reply.status(401).send({ error: 'Não autorizado: usuário não autenticado.' });
     }
 
-    const playerId = request.user.id; // Obter o ID do usuário autenticado
+    const playerId = request.user.sub; // Obter o ID do usuário autenticado
     const { betAmount, modality, platform } = request.body;
 
     if (!betAmount || !modality || !platform) {
@@ -35,10 +35,10 @@ class MatchmakingController {
       if (!player) {
         return reply.status(404).send({ error: 'Jogador não encontrado.' });
       }
-      // Prisma Decimal comparison
+       // Prisma Decimal comparison
       if (player.balance.lt(parsedBetAmount)) {
-        return reply.status(400).send({ error: 'Saldo insuficiente para a aposta.' });
-      }
+        return reply.status(400).send({ error: 'Saldo insuficiente para a aposta.' });
+      }
 
       // 2. Verificar se o jogador já está em uma fila de aposta ativa
       const existingBet = await this.prisma.directBet.findFirst({
@@ -65,11 +65,6 @@ class MatchmakingController {
           platform,
           status: 'WAITING_OPPONENT',
         },
-        include: { // Include player to use username in notifications
-            player: {
-                select: { username: true }
-            }
-        }
       });
 
       // Debitar o valor da aposta do saldo do jogador imediatamente
@@ -93,11 +88,15 @@ class MatchmakingController {
             createdAt: 'asc' // Busca o mais antigo na fila primeiro
         },
         include: { // Include player to use username in notifications
-            player: {
-                select: { username: true }
-            }
-        }
-      });
+              player: {
+                select: {
+                    id: true, // É bom incluir o ID também
+                    profile: { // Inclua o relacionamento 'profile'
+                        select: {
+                            username: true}
+                          }
+                        }
+                      }}});
 
       if (opponentBet) {
         // Encontrou um oponente!
@@ -288,10 +287,10 @@ class MatchmakingController {
   }
 
   async joinMediationQueue(request, reply) {
-    if (!request.user || !request.user.id) {
+    if (!request.user || !request.user.sub) {
       return reply.status(401).send({ error: 'Não autorizado: usuário não autenticado.' });
     }
-    const mediatorId = request.user.id;
+    const mediatorId = request.user.sub;
 
     try {
       const mediator = await this.prisma.user.findUnique({ where: { id: mediatorId } });
@@ -330,10 +329,11 @@ class MatchmakingController {
   }
 
   async leaveQueue(request, reply) {
-    if (!request.user || !request.user.id) {
+    if (!request.user || !request.user.sub
+    ) {
       return reply.status(401).send({ error: 'Não autorizado: usuário não autenticado.' });
     }
-    const userId = request.user.id;
+    const userId = request.user.sub;
     const { role } = request.body;
 
     if (!role) {
@@ -394,11 +394,11 @@ class MatchmakingController {
   }
 
   async getMatchDetails(request, reply) {
-    if (!request.user || !request.user.id) {
+    if (!request.user || !request.user.sub) {
       return reply.status(401).send({ error: 'Não autorizado: usuário não autenticado.' });
     }
     const { matchId } = request.params;
-    const userId = request.user.id;
+    const userId = request.user.sub;
 
     try {
       const match = await this.prisma.match.findUnique({
