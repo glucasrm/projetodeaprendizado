@@ -1,38 +1,42 @@
-{/*componente usado no perfil do usuário */}
+// src/components/overview/Overwiew-user-Card.jsx (ou o caminho correto)
 
 import { Card, CardContent } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { FaInstagram, FaFacebook, FaYoutube, FaDiscord } from "react-icons/fa";
-import {useContext, useEffect, useState} from 'react';
-import UserContext from "../../context/UserContext";
-import axios from 'axios';
+// Removidos: useContext, useEffect, useState, axios, UserContext
+// import {useContext, useEffect, useState} from 'react';
+// import UserContext from "../../context/UserContext";
+// import axios from 'axios';
 
 const VisaoGeralCard = ({ texto, idioma, gamesaccount, socialLinks: socialLinksProp }) => { 
+  // Removidos: user do contexto, socialLinks state e o useEffect de fetch
+  // const { user } = useContext(UserContext);
+  // const [socialLinks, setSocialLinks] = useState([]);
 
-  const { user } = useContext(UserContext);
-  const [socialLinks, setSocialLinks] = useState([]);
+  // Removido o useEffect completo
+  /*
+  useEffect(() => {
+    const fetchSocialLinks = async () => {
+      const token = localStorage.getItem("token");
+      if (!token) return;
 
-useEffect(() => {
-  const fetchSocialLinks = async () => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
-
-    try {
-      const res = await axios.get("http://localhost:3000/api/profile/social-links", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      setSocialLinks(res.data);
-    } catch (error) {
-      console.error("Erro ao buscar redes sociais:", error);
-    }
-  };
-
-  
+      try {
+        const res = await axios.get("http://localhost:3000/api/profile/social-links", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        setSocialLinks(res.data);
+      } catch (error) {
+        console.error("Erro ao buscar redes sociais:", error);
+      }
+    };
     fetchSocialLinks();
-}, []);
+  }, []);
+  */
 
+  // Usamos diretamente socialLinksProp, que vem do componente pai (OverViewPerfil)
+  const socialLinksToDisplay = socialLinksProp || [];
 
   const renderIcon = (platform) => {
     switch (platform) {
@@ -48,6 +52,7 @@ useEffect(() => {
         return null;
     }
   };
+
   return (
     <div className="flex flex-col md:flex-row gap-6">
       {/* Card About */}
@@ -57,20 +62,21 @@ useEffect(() => {
             <h2 className="text-xl font-semibold">Sobre</h2>
             <div>
               <h3 className="text-sm font-medium text-gray-400">Biografia</h3>
-              <p className="text-base mt-1">{user?.bio || 'Bio'}</p>
+              {/* Usamos o prop 'texto' para a biografia */}
+              <p className="text-base mt-1">{texto || 'Nenhuma biografia disponível.'}</p>
             </div>
             <div>
               <h3 className="text-sm font-medium text-gray-400">Idiomas</h3>
               <Badge className="bg-[#334155] text-white px-3 py-1 rounded-full mt-1">
-                {idioma}
+                {idioma || 'Não especificado'} {/* Usamos o prop 'idioma' */}
               </Badge>
             </div>
-      <div>
+            <div>
               <h3 className="text-sm font-medium text-gray-400">Redes sociais</h3>
               <div className="flex items-center gap-3 mt-2">
-                {socialLinks.length > 0 ? (
-                  socialLinks.map((link) => (
-                    <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer" className="text-white hover:text-blue-400">
+                {socialLinksToDisplay.length > 0 ? (
+                  socialLinksToDisplay.map((link) => (
+                    <a key={link.id || link.platform} href={link.url} target="_blank" rel="noopener noreferrer" className="text-white hover:text-blue-400">
                       {renderIcon(link.platform)}
                     </a>
                   ))

@@ -2,6 +2,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 
+
 const AmigoCard = ({ amigo }) => {
   // Certifique-se de que 'amigo' tem 'id', 'name' e 'avatar'
   const { id, name, avatar } = amigo;
