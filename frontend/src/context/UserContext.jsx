@@ -1,6 +1,6 @@
-// src/context/UserContext.js
+// src/context/UserContext.jsx
 import React, { createContext, useEffect, useState, useCallback } from 'react';
-import axios from 'axios'; // Mantenha axios. Se você usa axios.create em outro lugar, pode ser axios
+import axios from 'axios';
 
 export const UserContext = createContext();
 
@@ -12,7 +12,7 @@ export const UserProvider = ({ children }) => {
     const [isInBetQueue, setIsInBetQueue] = useState(false);
     const [currentBetId, setCurrentBetId] = useState(null);
     const [isInMediationQueue, setIsInMediationQueue] = useState(false);
-    const [currentMatch, setCurrentMatch] = useState(null);
+    const [currentMatch, setCurrentMatch] = useState(null); // Importante manter aqui
 
     // --- NOVOS ESTADOS PARA NOTIFICAÇÕES ---
     const [notifications, setNotifications] = useState([]);
@@ -58,11 +58,10 @@ export const UserProvider = ({ children }) => {
         } finally {
             setLoading(false);
         }
-    }, []); // Dependências ajustadas para useCallback
+    }, []);
 
-    // --- NOVAS FUNÇÕES DE NOTIFICAÇÃO ---
     const fetchNotifications = useCallback(async () => {
-        if (!login) { // Só busca se o usuário estiver logado
+        if (!login) {
             setNotifications([]);
             setUnreadNotificationsCount(0);
             return;
@@ -79,30 +78,26 @@ export const UserProvider = ({ children }) => {
             setNotifications([]);
             setUnreadNotificationsCount(0);
         }
-    }, [login]); // Dependências: apenas 'login'
+    }, [login]);
 
     const markNotificationsAsRead = useCallback(async (notificationIds) => {
-    if (!login || notificationIds.length === 0) return { success: false, message: "Nenhum ID fornecido ou não logado." };
-    const token = localStorage.getItem('token');
-    try {
-        await axios.post(`${import.meta.env.VITE_API_URL}/api/notifications/mark-read-batch`, { notificationIds }, {
-            headers: { Authorization: `Bearer ${token}` }
-        });
+        if (!login || notificationIds.length === 0) return { success: false, message: "Nenhum ID fornecido ou não logado." };
+        const token = localStorage.getItem('token');
+        try {
+            await axios.post(`${import.meta.env.VITE_API_URL}/api/notifications/mark-read-batch`, { notificationIds }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
 
-        // Atualiza o estado local para refletir que foram lidas
-        setNotifications(prev =>
-            prev.map(n => notificationIds.includes(n.id) ? { ...n, read: true } : n)
-        );
-        setUnreadNotificationsCount(prev => prev - notificationIds.length); // Decrementa o contador
-        return { success: true, message: 'Notificações marcadas como lidas.' };
-    } catch (error) {
-        console.error('Erro ao marcar notificações como lidas:', error);
-        return { success: false, message: 'Erro ao marcar notificações como lidas.' };
-    }
-}, [login]); // Dependências: 'login'
-
-
-    // --- FIM NOVAS FUNÇÕES DE NOTIFICAÇÃO ---
+            setNotifications(prev =>
+                prev.map(n => notificationIds.includes(n.id) ? { ...n, read: true } : n)
+            );
+            setUnreadNotificationsCount(prev => prev - notificationIds.length);
+            return { success: true, message: 'Notificações marcadas como lidas.' };
+        } catch (error) {
+            console.error('Erro ao marcar notificações como lidas:', error);
+            return { success: false, message: 'Erro ao marcar notificações como lidas.' };
+        }
+    }, [login]);
 
     const logout = () => {
         localStorage.removeItem('token');
@@ -111,13 +106,11 @@ export const UserProvider = ({ children }) => {
         setIsInBetQueue(false);
         setCurrentBetId(null);
         setIsInMediationQueue(false);
-        setCurrentMatch(null);
-        // Limpar estados de notificação também
+        setCurrentMatch(null); // Resetar currentMatch no logout
         setNotifications([]);
         setUnreadNotificationsCount(0);
     };
 
-    // ... (suas funções joinBetQueue, joinMediationQueue, leaveQueue, getMatchDetails - sem alterações aqui) ...
     const joinBetQueue = async (betAmount, modality, platform) => {
         if (!user || !login) {
             console.error("Usuário não logado para entrar na fila de apostas.");
@@ -131,15 +124,51 @@ export const UserProvider = ({ children }) => {
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 
-            if (res.data.status !== 'WAITING_OPPONENT') {
-                fetchUser();
-            } else {
-                fetchUser();
-            }
+            // Sempre busca o usuário para atualizar o saldo e status da fila
+            fetchUser();
 
             if (res.status === 200 || res.status === 202) {
                 setIsInBetQueue(true);
                 setCurrentBetId(res.data.betId || null);
+                if (res.data.matchId) {
+                    // Se um match foi encontrado, define o currentMatch
+                    setCurrentMatch({
+                        id: res.data.matchId,
+                        player1: res.data.player1,
+                        player2: res.data.player2,
+                        mediator: res.data.mediator,
+                        chatRoomId: res.data.chatRoomId,
+                        status: res.data.status,
+                    });
+                    return { success: true, message: res.data.message, match: res.data };
+                }
+                return { success: true, message: res.data.message, betId: res.data.betId, status: res.data.status };
+            }
+        } catch (error) {
+            console.error('Erro ao entrar na fila de apostas:', error.response?.data || error.message);
+            fetchUser(); // Tenta buscar o usuário mesmo em erro para atualizar saldo
+            setIsInBetQueue(false);
+            setCurrentBetId(null);
+            setCurrentMatch(null); // Limpa currentMatch em caso de erro ao entrar na fila
+            return { success: false, message: error.response?.data?.message || 'Erro ao entrar na fila.' };
+        }
+    };
+
+    const joinMediationQueue = async () => {
+        if (!user || !login || !user.isAdmin) {
+            return { success: false, message: "Você precisa ser um administrador logado para mediar." };
+        }
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/matchmaking/mediation/join-queue`, {},
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            fetchUser(); // Atualiza o status do usuário
+
+            if (res.status === 200 || res.status === 202) {
+                setIsInMediationQueue(true);
+                // Se um match for atribuído ao mediador imediatamente
                 if (res.data.matchId) {
                     setCurrentMatch({
                         id: res.data.matchId,
@@ -149,45 +178,68 @@ export const UserProvider = ({ children }) => {
                         chatRoomId: res.data.chatRoomId,
                         status: res.data.status,
                     });
-                    // Opcional: Criar uma notificação no frontend ou acionar o backend para criar uma
-                    // fetchNotifications(); // Se o backend gerar uma notificação de match_found
                     return { success: true, message: res.data.message, match: res.data };
                 }
-                return { success: true, message: res.data.message, betId: res.data.betId, status: res.data.status };
+                return { success: true, message: res.data.message };
             }
         } catch (error) {
-            console.error('Erro ao entrar na fila de apostas:', error.response?.data || error.message);
+            console.error('Erro ao entrar na fila de mediação:', error.response?.data || error.message);
             fetchUser();
-            setIsInBetQueue(false);
-            setCurrentBetId(null);
-            return { success: false, message: error.response?.data?.message || 'Erro ao entrar na fila.' };
+            setIsInMediationQueue(false);
+            setCurrentMatch(null); // Limpa currentMatch em caso de erro
+            return { success: false, message: error.response?.data?.message || 'Erro ao entrar na fila de mediação.' };
         }
     };
 
-    const joinMediationQueue = async () => { /* ... sua lógica ... */ };
-    const leaveQueue = async (role) => { /* ... sua lógica ... */ };
-    const getMatchDetails = async (matchId) => { /* ... sua lógica ... */ };
+    const leaveQueue = async (role) => {
+        if (!user || !login) {
+            return { success: false, message: "Usuário não logado." };
+        }
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/queue/leave`, { role },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
 
+            fetchUser(); // Atualiza o saldo e status do usuário
+            setIsInBetQueue(false);
+            setIsInMediationQueue(false);
+            setCurrentBetId(null);
+            setCurrentMatch(null); // **IMPORTANTE**: Limpa o currentMatch ao sair da fila
+            return { success: true, message: res.data.message };
+        } catch (error) {
+            console.error('Erro ao sair da fila:', error.response?.data || error.message);
+            fetchUser(); // Tenta buscar o usuário mesmo em erro
+            return { success: false, message: error.response?.data?.message || 'Erro ao sair da fila.' };
+        }
+    };
 
-    // Efeito para buscar usuário na montagem e para notificação
+    const getMatchDetails = async (matchId) => {
+        if (!login) return null;
+        const token = localStorage.getItem('token');
+        try {
+            const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/matchmaking/matches/${matchId}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            return res.data;
+        } catch (error) {
+            console.error('Erro ao buscar detalhes da partida:', error.response?.data || error.message);
+            return null;
+        }
+    };
+
     useEffect(() => {
         fetchUser();
     }, [fetchUser]);
 
-    // Novo useEffect para buscar notificações quando o login ou user mudar
     useEffect(() => {
         if (login) {
             fetchNotifications();
-            // Opcional: polling ou WebSocket para notificações em tempo real
-            // const interval = setInterval(fetchNotifications, 60000); // Ex: a cada 60 segundos
-            // return () => clearInterval(interval);
         } else {
-             // Limpa notificações se deslogado
             setNotifications([]);
             setUnreadNotificationsCount(0);
         }
     }, [login, fetchNotifications]);
-
 
     return (
         <UserContext.Provider value={{
@@ -204,13 +256,11 @@ export const UserProvider = ({ children }) => {
             joinMediationQueue,
             leaveQueue,
             getMatchDetails,
-            setCurrentMatch,
-            // --- Novos valores expostos no contexto ---
+            setCurrentMatch, // Expor setCurrentMatch para uso em outras lógicas, se necessário.
             notifications,
             unreadNotificationsCount,
-            fetchNotifications, // Expor para componentes que precisam recarregar
+            fetchNotifications,
             markNotificationsAsRead,
-            // ---
         }}>
             {children}
         </UserContext.Provider>
