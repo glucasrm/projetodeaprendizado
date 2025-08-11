@@ -21,10 +21,12 @@ export default function Login() {
       const res = await axios.post(`${API_URL}/api/auth/login`, {
         email,
         senha,
+        
       });
 
       const { token, user } = res.data;
       localStorage.setItem('token', token);
+      localStorage.setItem('isAdmin', user.isAdmin);
       setMensagem(`Bem-vindo, ${user.nome || 'usuário'}!`);
 
       await fetchUser(); // Atualiza o contexto com os dados do usuário logado

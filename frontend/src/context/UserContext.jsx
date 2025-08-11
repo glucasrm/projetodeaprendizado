@@ -1,4 +1,4 @@
-// src/context/UserContext.jsx
+// src/context/UserContext.jsx (ATUALIZADO COM MEDIAÇÃO)
 import React, { createContext, useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 
@@ -11,12 +11,27 @@ export const UserProvider = ({ children }) => {
 
     const [isInBetQueue, setIsInBetQueue] = useState(false);
     const [currentBetId, setCurrentBetId] = useState(null);
+    
+    // Estados de mediação existentes no UserContext do usuário
     const [isInMediationQueue, setIsInMediationQueue] = useState(false);
-    const [currentMatch, setCurrentMatch] = useState(null); // Importante manter aqui
+    const [currentMatch, setCurrentMatch] = useState(null); 
 
     // --- NOVOS ESTADOS PARA NOTIFICAÇÕES ---
     const [notifications, setNotifications] = useState([]);
     const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
+    // ---
+
+    // --- NOVOS ESTADOS PARA MEDIAÇÃO (ADICIONADOS/AJUSTADOS) ---
+    const [mediationPreferences, setMediationPreferences] = useState({
+        modalities: [],
+        platforms: []
+    });
+    const [mediationStats, setMediationStats] = useState({
+        totalMediations: 0,
+        successfulMediations: 0,
+        rating: 0,
+        totalEarnings: 0,
+    });
     // ---
 
     const fetchUser = useCallback(async () => {
@@ -109,29 +124,30 @@ export const UserProvider = ({ children }) => {
         setCurrentMatch(null); // Resetar currentMatch no logout
         setNotifications([]);
         setUnreadNotificationsCount(0);
+        setMediationPreferences({ modalities: [], platforms: [] });
+        setMediationStats({ totalMediations: 0, successfulMediations: 0, rating: 0, totalEarnings: 0 });
     };
 
-    const joinBetQueue = async (betAmount, modality, platform) => {
+    const joinBetQueue = async (betAmount, modality, platform, gameSlug) => {
         if (!user || !login) {
-            console.error("Usuário não logado para entrar na fila de apostas.");
             return { success: false, message: "Usuário não logado." };
         }
 
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/matchmaking/bets/join-queue`,
-                { betAmount, modality, platform },
+            const res = await axios.post(
+                `${import.meta.env.VITE_API_URL}/api/matchmaking/bets/join-queue`,
+                { betAmount, modality, platform, gameSlug },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 
-            // Sempre busca o usuário para atualizar o saldo e status da fila
             fetchUser();
 
             if (res.status === 200 || res.status === 202) {
                 setIsInBetQueue(true);
                 setCurrentBetId(res.data.betId || null);
+
                 if (res.data.matchId) {
-                    // Se um match foi encontrado, define o currentMatch
                     setCurrentMatch({
                         id: res.data.matchId,
                         player1: res.data.player1,
@@ -140,35 +156,41 @@ export const UserProvider = ({ children }) => {
                         chatRoomId: res.data.chatRoomId,
                         status: res.data.status,
                     });
-                    return { success: true, message: res.data.message, match: res.data };
                 }
-                return { success: true, message: res.data.message, betId: res.data.betId, status: res.data.status };
+
+                return { success: true, message: res.data.message, ...res.data };
             }
         } catch (error) {
             console.error('Erro ao entrar na fila de apostas:', error.response?.data || error.message);
-            fetchUser(); // Tenta buscar o usuário mesmo em erro para atualizar saldo
+            fetchUser();
             setIsInBetQueue(false);
             setCurrentBetId(null);
-            setCurrentMatch(null); // Limpa currentMatch em caso de erro ao entrar na fila
+            setCurrentMatch(null);
             return { success: false, message: error.response?.data?.message || 'Erro ao entrar na fila.' };
         }
     };
 
-    const joinMediationQueue = async () => {
+    // Função joinMediationQueue atualizada para aceitar modalidades e plataformas
+    const joinMediationQueue = async (modalities, platforms) => {
         if (!user || !login || !user.isAdmin) {
             return { success: false, message: "Você precisa ser um administrador logado para mediar." };
         }
+        if (!modalities || modalities.length === 0 || !platforms || platforms.length === 0) {
+            return { success: false, message: "Selecione pelo menos uma modalidade e uma plataforma para mediar." };
+        }
+
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/matchmaking/mediation/join-queue`, {},
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/matchmaking/mediation/join-queue`, 
+                { modalities, platforms }, // Enviando modalidades e plataformas
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 
-            fetchUser(); // Atualiza o status do usuário
+            fetchUser(); 
 
             if (res.status === 200 || res.status === 202) {
                 setIsInMediationQueue(true);
-                // Se um match for atribuído ao mediador imediatamente
+                setMediationPreferences({ modalities, platforms }); // Salva as preferências
                 if (res.data.matchId) {
                     setCurrentMatch({
                         id: res.data.matchId,
@@ -186,11 +208,12 @@ export const UserProvider = ({ children }) => {
             console.error('Erro ao entrar na fila de mediação:', error.response?.data || error.message);
             fetchUser();
             setIsInMediationQueue(false);
-            setCurrentMatch(null); // Limpa currentMatch em caso de erro
+            setCurrentMatch(null); 
             return { success: false, message: error.response?.data?.message || 'Erro ao entrar na fila de mediação.' };
         }
     };
 
+    // Função leaveQueue atualizada para aceitar o tipo de fila
     const leaveQueue = async (role) => {
         if (!user || !login) {
             return { success: false, message: "Usuário não logado." };
@@ -201,16 +224,46 @@ export const UserProvider = ({ children }) => {
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 
-            fetchUser(); // Atualiza o saldo e status do usuário
-            setIsInBetQueue(false);
-            setIsInMediationQueue(false);
-            setCurrentBetId(null);
-            setCurrentMatch(null); // **IMPORTANTE**: Limpa o currentMatch ao sair da fila
+            fetchUser(); 
+            if (role === 'player') {
+                setIsInBetQueue(false);
+                setCurrentBetId(null);
+            } else if (role === 'mediator') {
+                setIsInMediationQueue(false);
+                setMediationPreferences({ modalities: [], platforms: [] });
+            }
+            setCurrentMatch(null); 
             return { success: true, message: res.data.message };
         } catch (error) {
             console.error('Erro ao sair da fila:', error.response?.data || error.message);
-            fetchUser(); // Tenta buscar o usuário mesmo em erro
+            fetchUser(); 
             return { success: false, message: error.response?.data?.message || 'Erro ao sair da fila.' };
+        }
+    };
+
+    // Nova função para finalizar mediação
+    const completeMediation = async (matchId, result) => {
+        if (!user || !login || !user.isAdmin) {
+            return { success: false, message: "Você não tem permissão para finalizar mediações." };
+        }
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/mediation/complete`, 
+                { matchId, result, mediatorId: user.id },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            fetchUser(); // Atualiza o saldo e estatísticas do usuário
+            setMediationStats(prev => ({
+                ...prev,
+                totalMediations: prev.totalMediations + 1,
+                successfulMediations: result !== 'cancelled' ? prev.successfulMediations + 1 : prev.successfulMediations,
+                totalEarnings: prev.totalEarnings + (res.data.reward || 0)
+            }));
+            setCurrentMatch(null); // Limpa a partida atual após a finalização
+            return { success: true, message: res.data.message, reward: res.data.reward };
+        } catch (error) {
+            console.error('Erro ao finalizar mediação:', error.response?.data || error.message);
+            return { success: false, message: error.response?.data?.message || 'Erro ao finalizar mediação.' };
         }
     };
 
@@ -226,6 +279,14 @@ export const UserProvider = ({ children }) => {
             console.error('Erro ao buscar detalhes da partida:', error.response?.data || error.message);
             return null;
         }
+    };
+
+    // Função para atualizar estatísticas de mediação (pode ser chamada pelo backend ou manualmente)
+    const updateMediationStats = (newStats) => {
+        setMediationStats(prev => ({
+            ...prev,
+            ...newStats
+        }));
     };
 
     useEffect(() => {
@@ -256,11 +317,16 @@ export const UserProvider = ({ children }) => {
             joinMediationQueue,
             leaveQueue,
             getMatchDetails,
-            setCurrentMatch, // Expor setCurrentMatch para uso em outras lógicas, se necessário.
+            setCurrentMatch, 
             notifications,
             unreadNotificationsCount,
             fetchNotifications,
             markNotificationsAsRead,
+            // Novos valores para mediação
+            mediationPreferences,
+            mediationStats,
+            completeMediation,
+            updateMediationStats,
         }}>
             {children}
         </UserContext.Provider>

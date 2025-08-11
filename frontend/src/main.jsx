@@ -1,4 +1,4 @@
-// src/main.jsx
+// src/main.jsx (ATUALIZADO COM ROTAS DE MEDIAÇÃO)
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './index.css';
@@ -14,8 +14,7 @@ import GamesList from './pages/games/Games-list-page.jsx';
 import GamePage from './pages/games/Game-profile-page.jsx';
 import RankList from './pages/Ranking/Rank-games-page.jsx';
 import MainLayout from './components/navbar/MainLayout.jsx';
-// Remova este import, pois BettingForm será usado via QueuePage ou diretamente na rota do jogo
-import BettingForm from './pages/apostado/Apostado-games-page.jsx'; 
+import BettingForm from './pages/apostado/Fila-games-page.jsx'; 
 import ChatLayout from './pages/chat/Chat-page.jsx';
 import OverviewPage from './pages/overview/Overview-games-page.jsx';
 import GamesTorneios from './pages/tournaments/Tournaments-games-page.jsx';
@@ -36,13 +35,13 @@ import { UserProvider } from './context/UserContext';
 import NotificationsPage from './pages/notifications/notifications';
 import UserSearchPage from './pages/search/search-page';
 
-import MatchDetails from './pages/apostado/MatchDetails';
-// Remova este import, pois MediationQueueControl será usado via QueuePage
-// import MediationQueueControl from './components/apostado/MediationQueueControl'; 
 
-// Importe o novo componente QueuePage
-import QueuePage from './pages/apostado/QueuePage';
+import Main from './components/home/Mainhome';
+import ApostadoPage from './pages/apostado/Apostado-games-page';
 
+// NOVOS IMPORTS PARA MEDIAÇÃO
+import MediationPage from './pages/mediação/Mediation-page';
+import MediationChat from './pages/mediação/mediation-chat-page';
 
 createRoot(document.getElementById('root')).render(
     <StrictMode>
@@ -61,16 +60,17 @@ createRoot(document.getElementById('root')).render(
                     <Route path="/cadastrochave" element={<MainLayout><CadastrarChavePix/></MainLayout>} />
                     <Route path="/chat" element={<MainLayout><ChatLayout/></MainLayout>} />
                     <Route path="/created" element={<MainLayout><CreateOptionsGrid/></MainLayout>} />
+            
                     <Route path="/torneios/:jogo/:id/painel" element={<MainLayout><PainelPrincipal /></MainLayout>} />
                     <Route path="/torneios/:jogo/:id/painel/aparencia" element={<MainLayout><AppearanceSettings /></MainLayout>} />
-                    <Route path="/torneios/:jogo/:id" element={<MainLayout><TorneioDetalhesPage/></MainLayout>} />
+                    <Route path="/torneios/:jogo/:id" element={<MainLayout><TorneioDetalhesPage/></MainLayout>} />       
                     <Route path="/notificacoes" element={<MainLayout><NotificationsPage/></MainLayout>} />
                     <Route path="/search" element={<MainLayout><UserSearchPage /></MainLayout>} />
+                    <Route path="apostado" element={<MainLayout><ApostadoPage/></MainLayout>}/>
 
-                    {/* NOVA ROTA UNIFICADA PARA FILAS */}
-                    <Route path="/fila" element={<MainLayout><QueuePage /></MainLayout>} />
-                    <Route path="/apostas/detalhes/:matchId" element={<MainLayout><MatchDetails /></MainLayout>} />
-
+                    {/* NOVAS ROTAS PARA MEDIAÇÃO */}
+                    <Route path="/mediacao" element={<MainLayout><MediationPage /></MainLayout>} />
+                    <Route path="/mediacao/chat/:chatRoomId" element={<MainLayout><MediationChat /></MainLayout>} />
 
                     {/*abas do perfil page - Rota para o perfil do usuário logado*/}
                     <Route path="/perfil" element={<MainLayout><PerfilPage /></MainLayout>}>
@@ -83,20 +83,18 @@ createRoot(document.getElementById('root')).render(
                     {/*abas do perfil page - Rota para perfis públicos usando userId */}
                     <Route path="/perfil/:userId" element={<MainLayout><PerfilPage /></MainLayout>}>
                         <Route index element={<OverViewPerfil />} />
-                        {/* Se você quiser sub-rotas para perfis públicos, adicione-as aqui.
-                            Ex: <Route path="amigos" element={<AmigosListPublic />} /> */}
                     </Route>
-
 
                     {/*abas do gamepage*/}
                     <Route path="/games/:slug" element={<MainLayout><GamePage/></MainLayout>}>
                         <Route index element={<OverviewPage />} />
                         <Route path="ranking" element={<RankList />} />
-                        {/* A rota "apostado" ainda pode existir para acessar o formulário diretamente */}
-                        <Route path="apostado" element={<BettingForm />} /> 
+                        <Route path="fila" element={<BettingForm />} /> 
                         <Route path="torneios" element={<GamesTorneios />} />
+                        <Route path="apostado" element={<ApostadoPage/>}/>
+                        {/* NOVA ROTA PARA MEDIAÇÃO DENTRO DO JOGO */}
+                        <Route path="mediacao" element={<MediationPage/>}/>
                     </Route>
-
 
                     {/* Rotas SEM Navbar */}
                     <Route path="/login" element={<Login />} />

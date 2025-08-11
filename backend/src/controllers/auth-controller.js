@@ -27,7 +27,7 @@ export const loginUser = async (request, reply) => {
 
 
     const token = jwt.sign(
-      { id: user.id, email: user.email },
+      { id: user.id, email: user.email, isAdmin:user.admin },
       process.env.JWT_SECRET || 'chave_forte_teste',
       { expiresIn: '1h' }
     );
