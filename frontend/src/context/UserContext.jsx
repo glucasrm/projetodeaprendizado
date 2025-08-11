@@ -220,7 +220,7 @@ export const UserProvider = ({ children }) => {
         }
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/queue/leave`, { role },
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/matchmaking/queue/leave`, { role },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 

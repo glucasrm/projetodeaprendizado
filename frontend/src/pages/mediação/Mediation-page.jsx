@@ -54,21 +54,33 @@ const MediationPage = () => {
     const handleJoinQueue = async () => {
         setMessage('');
         setError('');
+if (!user || !login) {
+        setError('Você precisa estar logado para mediar partidas.');
+        return;
+    }
 
-        if (!user || !login) {
-            setError('Você precisa estar logado para mediar partidas.');
-            return;
-        }
+    if (selectedModalities.length === 0) {
+        setError('Selecione pelo menos uma modalidade.');
+        return;
+    }
 
-        if (selectedModalities.length === 0) {
-            setError('Selecione pelo menos uma modalidade.');
-            return;
-        }
+    if (selectedPlatforms.length === 0) {
+        setError('Selecione pelo menos uma plataforma.');
+        return;
+    }
 
-        if (selectedPlatforms.length === 0) {
-            setError('Selecione pelo menos uma plataforma.');
-            return;
+    try {
+        const result = await joinMediationQueue(selectedModalities, selectedPlatforms); // Chama a API
+
+        if (result.success) {
+            setMessage(result.message);
+        } else {
+            setError(result.message || 'Erro ao entrar na fila de mediação.');
         }
+    } catch (err) {
+        setError('Erro na comunicação com o servidor.');
+        console.error(err);
+    }
 
         // Aqui você chamaria a função do contexto para entrar na fila de mediação
         // const result = await joinMediationQueue(selectedModalities, selectedPlatforms);
@@ -89,7 +101,18 @@ const MediationPage = () => {
         
         // Aqui você chamaria a função do contexto para sair da fila
         // const result = await leaveQueue('mediator');
-        
+        try {
+        const result = await leaveQueue('mediator'); // Chama a API de verdade
+
+        if (result.success) {
+            setMessage(result.message);
+        } else {
+            setError(result.message || 'Erro ao sair da fila de mediação.');
+        }
+    } catch (err) {
+        setError('Erro na comunicação com o servidor.');
+        console.error(err);
+    }
         // Por enquanto, simulamos a saída da fila
         const result = { success: true, message: 'Você saiu da fila de mediação.' };
         
