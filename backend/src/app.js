@@ -18,7 +18,9 @@ import UserController from './controllers/user-controller.js';
 import notificationsRoutes from './routes/notifications-routes.js';
 
 // Importação das novas rotas de matchmaking e mediação
+import MatchmakingService from './services/matchmaking-service.js';
 import matchmakingRoutes from './routes/matchmaking-routes.js';
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -45,11 +47,32 @@ app.register(cors, {
 await app.register(prismaPlugin);
 app.register(authenticatePlugin);
 
-const userControllerInstance = new UserController(app.prisma);
+// Crie instâncias dos serviços que serão usados em múltiplos locais
 const notificationServiceInstance = new NotificationService(app.prisma);
-const friendshipControllerInstance = new FriendshipController(app.prisma, notificationServiceInstance);
 
+const matchmakingServiceInstance = new MatchmakingService(app.prisma);
+
+//  Inicie o "motor" de matchmaking em segundo plano.
+//    Ele começará a procurar por partidas assim que o servidor iniciar.
+console.log('Iniciando o serviço de matchmaking em segundo plano...');
+const matchmakingInterval = setInterval(() => {
+  // Usamos um try/catch para garantir que um erro no loop não quebre o servidor.
+  try {
+    matchmakingServiceInstance.findAndCreateMatches(); // A função que você adicionou no Passo 1
+  } catch (error) {
+    app.log.error('Erro no loop de matchmaking:', error);
+  }
+}, 10000); // Executa a cada 10 segundos.
+
+const userControllerInstance = new UserController(app.prisma);
+
+const friendshipControllerInstance = new FriendshipController(app.prisma, notificationServiceInstance);
 app.register(authRoutes, { prefix: '/api/auth' });
+app.register(matchmakingRoutes, { 
+  prefix: '/api/matchmaking',
+  matchmakingService: matchmakingServiceInstance
+});
+
 app.register(profileRoutes, { prefix: '/api/profile' });
 app.register(accountRoutes, { prefix: '/api/account' });
 app.register(socialLinksRoutes, { prefix: '/api/profile' });

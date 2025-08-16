@@ -19,25 +19,23 @@ class MatchmakingController {
       return reply.status(500).send({ message: "Erro ao entrar na fila de apostas.", error: error.message });
     }
   }
+async joinMediationQueue(request, reply) {
+  const { modalities, platforms } = request.body;
+  const mediatorId = request.user.sub; // ID do usuário autenticado
 
-  async joinMediationQueue(request, reply) {
-    const { modalities, platforms } = request.body;
-    const mediatorId = request.user.sub; // ID do mediador autenticado
-
-    if (!mediatorId) {
-      return reply.status(401).send({ message: "Mediador não autenticado." });
-    }
-
-    // TODO: Adicionar verificação se o usuário é isAdmin
-
-    try {
-      const result = await this.matchmakingService.joinMediationQueue(mediatorId, modalities, platforms);
-      return reply.send(result);
-    } catch (error) {
-      request.log.error(error);
-      return reply.status(500).send({ message: "Erro ao entrar na fila de mediação.", error: error.message });
-    }
+  if (!mediatorId) {
+    return reply.status(401).send({ message: "Mediador não autenticado." });
   }
+
+  try {
+    const result = await this.matchmakingService.joinMediationQueue(mediatorId, modalities, platforms);
+    return reply.send(result);
+  } catch (error) {
+    request.log.error(error);
+    return reply.status(500).send({ message: "Erro ao entrar na fila de mediação.", error: error.message });
+  }
+}
+
 
   async leaveQueue(request, reply) {
     const { role } = request.body;

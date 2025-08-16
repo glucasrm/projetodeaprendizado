@@ -166,7 +166,7 @@ model DirectBet {
 }
 
 model Match {
-  id                String             @id @default(uuid())
+ id                String             @id @default(uuid())
   player1Id         String
   player1           User               @relation("Player1", fields: [player1Id], references: [id])
   player2Id         String
@@ -176,6 +176,7 @@ model Match {
   betAmount         Decimal            @db.Decimal(10, 2)
   modality          String
   platform          String
+  gameSlug          String?            // Adicionado para registrar o jogo da partida. Torne opcional (?) se nem todas as partidas tiverem um jogo.
   status            String             @default("PENDING_MEDIATION") // PENDING_MEDIATION, IN_PROGRESS, COMPLETED, CANCELED, FINISHED
   chatRoomId        String?            @unique // ID para o chat
   createdAt         DateTime           @default(now())
@@ -191,9 +192,11 @@ model Match {
 
 model MediationRequest {
   id          String   @id @default(uuid())
-  mediatorId  String   @unique // Um mediador só pode ter 1 request ativo
+  mediatorId  String   @unique
   mediator    User     @relation(fields: [mediatorId], references: [id])
-  status      String   @default("AVAILABLE") // AVAILABLE, IN_MEDIATION, OFFLINE
+  modalities  String[] // ex: ["1v1", "2v2"]
+  platforms   String[] // ex: ["Mobile", "Emulador"]
+  status      String   @default("AVAILABLE")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
