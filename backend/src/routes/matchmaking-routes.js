@@ -1,9 +1,13 @@
 import MatchmakingController from "../controllers/matchmaking-controller.js";
-import MatchmakingService from "../services/matchmaking-service.js";
 
 async function matchmakingRoutes(fastify, options) {
-  const matchmakingService = new MatchmakingService(fastify.prisma);
-  const matchmakingController = new MatchmakingController(matchmakingService);
+  const matchmakingService = options.matchmakingService; 
+  
+  if (!matchmakingService) {
+    throw new Error("MatchmakingService não foi fornecido para as rotas.");
+  }
+
+    const matchmakingController = new MatchmakingController(matchmakingService);
 
   // Rotas de apostas (jogadores)
   fastify.post(

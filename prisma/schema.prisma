@@ -155,6 +155,7 @@ model DirectBet {
   betAmount       Decimal      @db.Decimal(10, 2)
   modality        String       // '1v1', '2v2', '3v3', '4v4'
   platform        String       // 'Mobile', 'Emulador'
+   gameSlug        String?      // Adicionado para registrar o jogo da aposta
   status          String       @default("WAITING_OPPONENT") // WAITING_OPPONENT, MATCHED, IN_PROGRESS, COMPLETED, CANCELED
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt

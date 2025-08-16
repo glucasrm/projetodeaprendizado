@@ -1,111 +1,226 @@
-import { PrismaClient } from '@prisma/client';
+// src/services/mediationService.js
+// Serviço para integração com API de mediação
 
-class MatchmakingService {
-  constructor(prisma) {
-    this.prisma = prisma;
-  }
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
 
-  async joinBetQueue(userId, betAmount, modality, platform, gameSlug) {
-    // Lógica para adicionar jogador à fila de apostas
-    // 1. Criar um registro em DirectBet com status WAITING_OPPONENT
-    // 2. Tentar encontrar um oponente e/ou mediador
-    // 3. Se encontrar, criar um Match e Conversation
-    // 4. Retornar status da fila ou detalhes do match
-    console.log(`User ${userId} joining bet queue for ${betAmount} in ${modality} on ${platform} for ${gameSlug}`);
-    // Exemplo simplificado:
-    const bet = await this.prisma.directBet.create({
-      data: {
-        playerId: userId,
-        betAmount: parseFloat(betAmount),
-        modality,
-        platform,
-        gameSlug, // Adicionar gameSlug ao modelo DirectBet se necessário
-        status: 'WAITING_OPPONENT',
-      },
-    });
-    return { success: true, message: 'Entrou na fila de apostas', betId: bet.id };
-  }
-
-  async joinMediationQueue(mediatorId, modalities, platforms) {
-    // Lógica para adicionar mediador à fila de mediação
-    // 1. Criar/atualizar um registro em MediationRequest
-    // 2. Tentar encontrar uma partida que precise de mediador
-    // 3. Se encontrar, atribuir mediador ao Match
-    console.log(`Mediator ${mediatorId} joining mediation queue for modalities: ${modalities}, platforms: ${platforms}`);
-    const mediationRequest = await this.prisma.mediationRequest.upsert({
-      where: { mediatorId: mediatorId },
-      update: { status: 'AVAILABLE', modalities, platforms },
-      create: { mediatorId: mediatorId, status: 'AVAILABLE', modalities, platforms },
-    });
-    return { success: true, message: 'Entrou na fila de mediação', requestId: mediationRequest.id };
-  }
-
-  async leaveQueue(userId, role) {
-    // Lógica para remover usuário da fila (aposta ou mediação)
-    console.log(`User ${userId} leaving ${role} queue`);
-    if (role === 'player') {
-      await this.prisma.directBet.updateMany({
-        where: { playerId: userId, status: 'WAITING_OPPONENT' },
-        data: { status: 'CANCELED' },
-      });
-    } else if (role === 'mediator') {
-      await this.prisma.mediationRequest.updateMany({
-        where: { mediatorId: userId, status: 'AVAILABLE' },
-        data: { status: 'OFFLINE' },
-      });
+class MediationService {
+    constructor() {
+        this.baseURL = API_BASE_URL;
     }
-    return { success: true, message: 'Saiu da fila' };
-  }
 
-  async completeMediation(mediatorId, matchId, result) {
-    // Lógica para mediador finalizar a partida
-    // 1. Atualizar status do Match e resultado
-    // 2. Distribuir recompensas/penalidades
-    // 3. Atualizar estatísticas do mediador
-    console.log(`Mediator ${mediatorId} completing match ${matchId} with result ${result}`);
-    const match = await this.prisma.match.update({
-      where: { id: matchId },
-      data: { status: 'COMPLETED', result: result },
-    });
-    // Lógica de recompensa e atualização de estatísticas do mediador aqui
-    return { success: true, message: 'Mediação finalizada', match };
-  }
+    // Método auxiliar para fazer requisições
+    async makeRequest(endpoint, options = {}) {
+        const token = localStorage.getItem('authToken');
+        
+        const defaultOptions = {
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token && { 'Authorization': `Bearer ${token}` }),
+            },
+        };
 
-  async getMatchDetails(matchId) {
-    // Lógica para obter detalhes de uma partida
-    console.log(`Fetching details for match ${matchId}`);
-    const match = await this.prisma.match.findUnique({
-      where: { id: matchId },
-      include: { player1: true, player2: true, mediator: true, conversation: true },
-    });
-    return { success: true, match };
-  }
+        const finalOptions = {
+            ...defaultOptions,
+            ...options,
+            headers: {
+                ...defaultOptions.headers,
+                ...options.headers,
+            },
+        };
 
-  async getChatHistory(chatRoomId) {
-    // Lógica para obter histórico de mensagens do chat
-    console.log(`Fetching chat history for room ${chatRoomId}`);
-    const conversation = await this.prisma.conversation.findUnique({
-      where: { matchId: chatRoomId }, // Assumindo chatRoomId é o matchId
-      include: { messages: { orderBy: { createdAt: 'asc' } } },
-    });
-    return { success: true, messages: conversation?.messages || [] };
-  }
+        try {
+            const response = await fetch(`${this.baseURL}${endpoint}`, finalOptions);
+            const data = await response.json();
 
-  async sendMessage(chatRoomId, senderId, content, messageType) {
-    // Lógica para enviar mensagem no chat
-    console.log(`Sending message in room ${chatRoomId} from ${senderId}: ${content}`);
-    const message = await this.prisma.message.create({
-      data: {
-        conversation: { connect: { matchId: chatRoomId } },
-        sender: { connect: { id: senderId } },
-        content,
-      },
-    });
-    return { success: true, message };
-  }
+            if (!response.ok) {
+                throw new Error(data.message || 'Erro na requisição');
+            }
 
-  // Adicione outras funções de matchmaking e mediação conforme necessário
+            return {
+                success: true,
+                data,
+                status: response.status,
+            };
+        } catch (error) {
+            console.error('Erro na requisição:', error);
+            return {
+                success: false,
+                error: error.message,
+                status: error.status || 500,
+            };
+        }
+    }
+
+    // Entrar na fila de mediação
+    async joinMediationQueue(userId, modalities, platforms) {
+        return await this.makeRequest('/mediation/join-queue', {
+            method: 'POST',
+            body: JSON.stringify({
+                userId,
+                modalities,
+                platforms,
+                timestamp: new Date().toISOString(),
+            }),
+        });
+    }
+
+    // Sair da fila de mediação
+    async leaveMediationQueue(userId) {
+        return await this.makeRequest('/mediation/leave-queue', {
+            method: 'POST',
+            body: JSON.stringify({
+                userId,
+                timestamp: new Date().toISOString(),
+            }),
+        });
+    }
+
+    // Obter status da fila de mediação
+    async getMediationQueueStatus(userId) {
+        return await this.makeRequest(`/mediation/queue-status/${userId}`, {
+            method: 'GET',
+        });
+    }
+
+    // Aceitar mediação de uma partida
+    async acceptMediation(mediatorId, matchId) {
+        return await this.makeRequest('/mediation/accept', {
+            method: 'POST',
+            body: JSON.stringify({
+                mediatorId,
+                matchId,
+                timestamp: new Date().toISOString(),
+            }),
+        });
+    }
+
+    // Finalizar mediação
+    async completeMediation(mediatorId, matchId, result, notes = '') {
+        return await this.makeRequest('/mediation/complete', {
+            method: 'POST',
+            body: JSON.stringify({
+                mediatorId,
+                matchId,
+                result, // 'player1', 'player2', 'draw', 'cancelled'
+                notes,
+                timestamp: new Date().toISOString(),
+            }),
+        });
+    }
+
+    // Enviar mensagem no chat de mediação
+    async sendMediationMessage(chatRoomId, senderId, message, messageType = 'mediator') {
+        return await this.makeRequest('/mediation/send-message', {
+            method: 'POST',
+            body: JSON.stringify({
+                chatRoomId,
+                senderId,
+                message,
+                messageType,
+                timestamp: new Date().toISOString(),
+            }),
+        });
+    }
+
+    // Obter histórico de mensagens do chat
+    async getChatHistory(chatRoomId, limit = 50, offset = 0) {
+        return await this.makeRequest(
+            `/mediation/chat-history/${chatRoomId}?limit=${limit}&offset=${offset}`,
+            {
+                method: 'GET',
+            }
+        );
+    }
+
+    // Obter estatísticas do mediador
+    async getMediatorStats(mediatorId) {
+        return await this.makeRequest(`/mediation/stats/${mediatorId}`, {
+            method: 'GET',
+        });
+    }
+
+    // Reportar problema durante mediação
+    async reportIssue(mediatorId, matchId, issueType, description) {
+        return await this.makeRequest('/mediation/report-issue', {
+            method: 'POST',
+            body: JSON.stringify({
+                mediatorId,
+                matchId,
+                issueType, // 'player_disconnect', 'cheating', 'dispute', 'technical'
+                description,
+                timestamp: new Date().toISOString(),
+            }),
+        });
+    }
+
+    // Obter lista de partidas disponíveis para mediação
+    async getAvailableMatches(mediatorId, modalities = [], platforms = []) {
+        const queryParams = new URLSearchParams();
+        if (modalities.length > 0) {
+            queryParams.append('modalities', modalities.join(','));
+        }
+        if (platforms.length > 0) {
+            queryParams.append('platforms', platforms.join(','));
+        }
+
+        return await this.makeRequest(
+            `/mediation/available-matches/${mediatorId}?${queryParams.toString()}`,
+            {
+                method: 'GET',
+            }
+        );
+    }
+
+    // Atualizar preferências de mediação
+    async updateMediationPreferences(mediatorId, preferences) {
+        return await this.makeRequest('/mediation/update-preferences', {
+            method: 'PUT',
+            body: JSON.stringify({
+                mediatorId,
+                preferences, // { modalities: [], platforms: [], availability: {} }
+                timestamp: new Date().toISOString(),
+            }),
+        });
+    }
 }
 
-export default MatchmakingService;
+// Instância singleton do serviço
+const mediationService = new MediationService();
 
+export default mediationService;
+
+// Funções auxiliares para uso direto
+export const mediationAPI = {
+    joinQueue: (userId, modalities, platforms) => 
+        mediationService.joinMediationQueue(userId, modalities, platforms),
+    
+    leaveQueue: (userId) => 
+        mediationService.leaveMediationQueue(userId),
+    
+    getQueueStatus: (userId) => 
+        mediationService.getMediationQueueStatus(userId),
+    
+    acceptMediation: (mediatorId, matchId) => 
+        mediationService.acceptMediation(mediatorId, matchId),
+    
+    completeMediation: (mediatorId, matchId, result, notes) => 
+        mediationService.completeMediation(mediatorId, matchId, result, notes),
+    
+    sendMessage: (chatRoomId, senderId, message, messageType) => 
+        mediationService.sendMediationMessage(chatRoomId, senderId, message, messageType),
+    
+    getChatHistory: (chatRoomId, limit, offset) => 
+        mediationService.getChatHistory(chatRoomId, limit, offset),
+    
+    getMediatorStats: (mediatorId) => 
+        mediationService.getMediatorStats(mediatorId),
+    
+    reportIssue: (mediatorId, matchId, issueType, description) => 
+        mediationService.reportIssue(mediatorId, matchId, issueType, description),
+    
+    getAvailableMatches: (mediatorId, modalities, platforms) => 
+        mediationService.getAvailableMatches(mediatorId, modalities, platforms),
+    
+    updatePreferences: (mediatorId, preferences) => 
+        mediationService.updateMediationPreferences(mediatorId, preferences),
+};
