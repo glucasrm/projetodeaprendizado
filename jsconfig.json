@@ -5,6 +5,6 @@
         "@/*": ["frontend/src/*"]
       }
     },
-    "include": ["frontend/src", "backend/src/app.js"]
+    "include": ["frontend/src", "backend/src/app.js", "backend/src/hooks/seMatchRedirect.js"]
   }
   

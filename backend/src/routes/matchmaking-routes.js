@@ -1,3 +1,5 @@
+// src/routes/matchmaking-routes.js (VERSÃO MODIFICADA COM CONFIRMAÇÃO)
+
 import MatchmakingController from "../controllers/matchmaking-controller.js";
 
 async function matchmakingRoutes(fastify, options) {
@@ -34,6 +36,19 @@ async function matchmakingRoutes(fastify, options) {
     "/queue/leave",
     { onRequest: [fastify.authenticate] },
     (request, reply) => matchmakingController.leaveQueue(request, reply)
+  );
+
+  // NOVAS ROTAS: Confirmação e cancelamento de partidas
+  fastify.post(
+    "/matches/:matchId/confirm",
+    { onRequest: [fastify.authenticate] },
+    (request, reply) => matchmakingController.confirmMatch(request, reply)
+  );
+
+  fastify.post(
+    "/matches/:matchId/cancel",
+    { onRequest: [fastify.authenticate] },
+    (request, reply) => matchmakingController.cancelMatch(request, reply)
   );
 
   // Rotas de detalhes da partida

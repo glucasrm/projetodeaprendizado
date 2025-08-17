@@ -1,4 +1,4 @@
-// src/services/matchmaking-service.js
+// src/services/matchmaking-service.js (VERSÃO MODIFICADA COM CONFIRMAÇÃO)
 
 class MatchmakingService {
   constructor(prisma, notificationService) {
@@ -55,6 +55,7 @@ class MatchmakingService {
 
           const { match } = await this.prisma.$transaction(async (tx) => {
             
+            // MODIFICAÇÃO: Criar partida com status PENDING_CONFIRMATION
             const newMatch = await tx.match.create({
               data: {
                 player1Id: p1.id,
@@ -64,7 +65,11 @@ class MatchmakingService {
                 modality: player1Bet.modality,
                 platform: player1Bet.platform,
                 gameSlug: player1Bet.gameSlug,
-                status: 'IN_PROGRESS',
+                status: 'PENDING_CONFIRMATION', // MODIFICAÇÃO: Status inicial é PENDING_CONFIRMATION
+                // Campos de confirmação inicializados como false
+                player1Confirmed: false,
+                player2Confirmed: false,
+                mediatorConfirmed: false,
               },
             });
 
@@ -94,31 +99,224 @@ class MatchmakingService {
             const player1Name = p1.profile?.username || p1.nome;
             const player2Name = p2.profile?.username || p2.nome;
 
+            // MODIFICAÇÃO: Notificações agora mencionam a necessidade de confirmação
             await self.notificationService.createNotification(
-              p1.id, 'match_found_player', `Seu confronto 🏆 1v1 contra ${player2Name} foi encontrado!`,
+              p1.id, 'match_found_player', `Seu confronto 🏆 1v1 contra ${player2Name} foi encontrado! Confirme sua participação.`,
               { opponentId: p2.id, opponentName: player2Name, matchId: newMatch.id }, `/mediacao/chat/${newMatch.id}`
             );
 
             await self.notificationService.createNotification(
-              p2.id, 'match_found_player', `Seu confronto 🏆 1v1 contra ${player1Name} foi encontrado!`,
+              p2.id, 'match_found_player', `Seu confronto 🏆 1v1 contra ${player1Name} foi encontrado! Confirme sua participação.`,
               { opponentId: p1.id, opponentName: player1Name, matchId: newMatch.id }, `/mediacao/chat/${newMatch.id}`
             );
 
             await self.notificationService.createNotification(
-              availableMediator.mediatorId, 'match_assigned_mediator', `Você foi atribuído para mediar um confronto ⚖️ 1v1 entre ${player1Name} e ${player2Name}.`,
+              availableMediator.mediatorId, 'match_assigned_mediator', `Você foi atribuído para mediar um confronto ⚖️ 1v1 entre ${player1Name} e ${player2Name}. Confirme sua participação.`,
               { player1Id: p1.id, player1Name, player2Id: p2.id, player2Name, matchId: newMatch.id }, `/mediacao/chat/${newMatch.id}`
             );
 
             return { match: newMatch };
           });
 
-          console.log(`Partida ${match.id} criada com sucesso!`);
+          console.log(`Partida ${match.id} criada com sucesso! Aguardando confirmações.`);
 
         } catch (error) {
           console.error("Falha na transação de criação de partida:", error);
           bets.unshift(player1Bet, player2Bet);
         }
       }
+    }
+  }
+
+  // NOVO MÉTODO: Confirmar participação na partida
+  async confirmMatch(matchId, userId) {
+    console.log(`User ${userId} confirming match ${matchId}`);
+    
+    try {
+      const match = await this.prisma.match.findUnique({
+        where: { id: matchId },
+        include: {
+          player1: { include: { profile: true } },
+          player2: { include: { profile: true } },
+          mediator: { include: { profile: true } },
+        },
+      });
+
+      if (!match) {
+        return { success: false, message: 'Partida não encontrada.' };
+      }
+
+      if (match.status !== 'PENDING_CONFIRMATION') {
+        return { success: false, message: 'Esta partida não está aguardando confirmação.' };
+      }
+
+      // Verificar se o usuário é um participante da partida
+      const isPlayer1 = match.player1Id === userId;
+      const isPlayer2 = match.player2Id === userId;
+      const isMediator = match.mediatorId === userId;
+
+      if (!isPlayer1 && !isPlayer2 && !isMediator) {
+        return { success: false, message: 'Você não é um participante desta partida.' };
+      }
+
+      // Determinar qual campo de confirmação atualizar
+      let updateData = {};
+      if (isPlayer1) {
+        if (match.player1Confirmed) {
+          return { success: false, message: 'Você já confirmou sua participação.' };
+        }
+        updateData.player1Confirmed = true;
+      } else if (isPlayer2) {
+        if (match.player2Confirmed) {
+          return { success: false, message: 'Você já confirmou sua participação.' };
+        }
+        updateData.player2Confirmed = true;
+      } else if (isMediator) {
+        if (match.mediatorConfirmed) {
+          return { success: false, message: 'Você já confirmou sua participação.' };
+        }
+        updateData.mediatorConfirmed = true;
+      }
+
+      // Atualizar a confirmação
+      const updatedMatch = await this.prisma.match.update({
+        where: { id: matchId },
+        data: updateData,
+      });
+
+      // Verificar se todos confirmaram
+      const allConfirmed = (
+        (isPlayer1 ? true : match.player1Confirmed) &&
+        (isPlayer2 ? true : match.player2Confirmed) &&
+        (isMediator ? true : match.mediatorConfirmed)
+      );
+
+      if (allConfirmed) {
+        // Todos confirmaram, iniciar a partida
+        await this.prisma.match.update({
+          where: { id: matchId },
+          data: { status: 'IN_PROGRESS' },
+        });
+
+        // Enviar notificações de início da partida
+        const player1Name = match.player1.profile?.username || match.player1.nome;
+        const player2Name = match.player2.profile?.username || match.player2.nome;
+
+        await this.notificationService.createNotification(
+          match.player1Id, 'match_started', `Sua partida contra ${player2Name} foi confirmada e iniciada! 🎮`,
+          { matchId: matchId }, `/mediacao/chat/${matchId}`
+        );
+
+        await this.notificationService.createNotification(
+          match.player2Id, 'match_started', `Sua partida contra ${player1Name} foi confirmada e iniciada! 🎮`,
+          { matchId: matchId }, `/mediacao/chat/${matchId}`
+        );
+
+        await this.notificationService.createNotification(
+          match.mediatorId, 'match_started', `A partida entre ${player1Name} e ${player2Name} foi confirmada e iniciada! ⚖️`,
+          { matchId: matchId }, `/mediacao/chat/${matchId}`
+        );
+
+        return { success: true, message: 'Partida confirmada e iniciada!', matchStarted: true };
+      } else {
+        return { success: true, message: 'Confirmação registrada. Aguardando outros participantes.', matchStarted: false };
+      }
+
+    } catch (error) {
+      console.error('Erro ao confirmar partida:', error);
+      return { success: false, message: 'Erro interno do servidor.' };
+    }
+  }
+
+  // NOVO MÉTODO: Cancelar partida
+  async cancelMatch(matchId, userId) {
+    console.log(`User ${userId} canceling match ${matchId}`);
+    
+    try {
+      const match = await this.prisma.match.findUnique({
+        where: { id: matchId },
+        include: {
+          player1: { include: { profile: true } },
+          player2: { include: { profile: true } },
+          mediator: { include: { profile: true } },
+        },
+      });
+
+      if (!match) {
+        return { success: false, message: 'Partida não encontrada.' };
+      }
+
+      if (match.status !== 'PENDING_CONFIRMATION') {
+        return { success: false, message: 'Esta partida não pode ser cancelada.' };
+      }
+
+      // Verificar se o usuário é um participante da partida
+      const isPlayer1 = match.player1Id === userId;
+      const isPlayer2 = match.player2Id === userId;
+      const isMediator = match.mediatorId === userId;
+
+      if (!isPlayer1 && !isPlayer2 && !isMediator) {
+        return { success: false, message: 'Você não é um participante desta partida.' };
+      }
+
+      const self = this;
+
+      await this.prisma.$transaction(async (tx) => {
+        // Cancelar a partida
+        await tx.match.update({
+          where: { id: matchId },
+          data: { status: 'CANCELLED' },
+        });
+
+        // Retornar as apostas para o status WAITING_OPPONENT
+        await tx.directBet.updateMany({
+          where: { matchId: matchId },
+          data: { status: 'WAITING_OPPONENT', matchId: null },
+        });
+
+        // Liberar o mediador
+        await tx.mediationRequest.updateMany({
+          where: { mediatorId: match.mediatorId },
+          data: { status: 'AVAILABLE' },
+        });
+
+        // Enviar notificações de cancelamento
+        const canceledByName = isPlayer1 ? (match.player1.profile?.username || match.player1.nome) :
+                              isPlayer2 ? (match.player2.profile?.username || match.player2.nome) :
+                              (match.mediator.profile?.username || match.mediator.nome);
+
+        if (!isPlayer1) {
+          await self.notificationService.createNotification(
+            match.player1Id, 'match_cancelled', `Sua partida foi cancelada por ${canceledByName}. Você foi retornado à fila.`,
+            {}, `/games/${match.gameSlug}/fila`
+          );
+        }
+
+        if (!isPlayer2) {
+          await self.notificationService.createNotification(
+            match.player2Id, 'match_cancelled', `Sua partida foi cancelada por ${canceledByName}. Você foi retornado à fila.`,
+            {}, `/games/${match.gameSlug}/fila`
+          );
+        }
+
+        if (!isMediator) {
+          await self.notificationService.createNotification(
+            match.mediatorId, 'match_cancelled', `A partida que você mediaria foi cancelada por ${canceledByName}.`,
+            {}, `/mediacao`
+          );
+        }
+      });
+
+      return { 
+        success: true, 
+        message: 'Partida cancelada com sucesso. Você foi retornado à fila.',
+        gameSlug: match.gameSlug,
+        userType: isMediator ? 'mediator' : 'player'
+      };
+
+    } catch (error) {
+      console.error('Erro ao cancelar partida:', error);
+      return { success: false, message: 'Erro interno do servidor.' };
     }
   }
 
@@ -267,3 +465,4 @@ async listUserConversations(userId) {
 
 
 export default MatchmakingService;
+

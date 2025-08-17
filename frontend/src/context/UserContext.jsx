@@ -1,3 +1,5 @@
+// src/context/UserContext.jsx (VERSÃO MODIFICADA COM CONFIRMAÇÃO)
+
 import React, { createContext, useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 
@@ -103,7 +105,7 @@ export const UserProvider = ({ children }) => {
             setNotifications(prev =>
                 prev.map(n => notificationIds.includes(n.id) ? { ...n, read: true } : n)
             );
-            setUnreadNotificationsCount(prev => Math.max(0, prev - notificationIds.length)); // ✅ CORRIGIDO
+            setUnreadNotificationsCount(prev => Math.max(0, prev - notificationIds.length));
             return { success: true, message: 'Notificações marcadas como lidas.' };
         } catch (error) {
             console.error('Erro ao marcar notificações como lidas:', error);
@@ -123,6 +125,83 @@ export const UserProvider = ({ children }) => {
         setUnreadNotificationsCount(0);
         setMediationPreferences({ modalities: [], platforms: [] });
         setMediationStats({ totalMediations: 0, successfulMediations: 0, rating: 0, totalEarnings: 0 });
+    };
+
+    // NOVA FUNÇÃO: Confirmar participação na partida
+    const confirmMatch = async (matchId) => {
+        if (!user || !login) {
+            return { success: false, message: "Usuário não logado." };
+        }
+
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.post(
+                `${import.meta.env.VITE_API_URL}/api/matchmaking/matches/${matchId}/confirm`,
+                {},
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            if (res.status === 200) {
+                // Atualizar os dados da partida atual
+                const updatedMatchData = await getMatchDetails(matchId);
+                if (updatedMatchData?.success && updatedMatchData.match) {
+                    setCurrentMatch(updatedMatchData.match);
+                }
+
+                // Se a partida foi iniciada, sair das filas
+                if (res.data.matchStarted) {
+                    setIsInBetQueue(false);
+                    setIsInMediationQueue(false);
+                    setCurrentBetId(null);
+                }
+
+                return { success: true, message: res.data.message, matchStarted: res.data.matchStarted };
+            }
+        } catch (error) {
+            console.error('Erro ao confirmar partida:', error.response?.data || error.message);
+            return { success: false, message: error.response?.data?.message || 'Erro ao confirmar partida.' };
+        }
+    };
+
+    // NOVA FUNÇÃO: Cancelar partida
+    const cancelMatch = async (matchId) => {
+        if (!user || !login) {
+            return { success: false, message: "Usuário não logado." };
+        }
+
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.post(
+                `${import.meta.env.VITE_API_URL}/api/matchmaking/matches/${matchId}/cancel`,
+                {},
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            if (res.status === 200) {
+                // Limpar a partida atual
+                setCurrentMatch(null);
+                
+                // Retornar às filas se aplicável
+                if (res.data.userType === 'player') {
+                    setIsInBetQueue(true);
+                } else if (res.data.userType === 'mediator') {
+                    setIsInMediationQueue(true);
+                }
+
+                // Atualizar saldo do usuário
+                fetchUser();
+
+                return { 
+                    success: true, 
+                    message: res.data.message, 
+                    gameSlug: res.data.gameSlug,
+                    userType: res.data.userType
+                };
+            }
+        } catch (error) {
+            console.error('Erro ao cancelar partida:', error.response?.data || error.message);
+            return { success: false, message: error.response?.data?.message || 'Erro ao cancelar partida.' };
+        }
     };
 
     const joinBetQueue = async (betAmount, modality, platform, gameSlug) => {
@@ -242,7 +321,7 @@ export const UserProvider = ({ children }) => {
         }
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/matchmaking/mediation/complete`,  // ✅ rota corrigida
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/matchmaking/mediation/complete`,
                 { matchId, result, mediatorId: user.id },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
@@ -306,7 +385,7 @@ export const UserProvider = ({ children }) => {
     if (login) {
         const interval = setInterval(() => {
             fetchNotifications();
-            fetchConversations(); // Busque as conversas também
+            fetchConversations();
         }, 10000);
         return () => clearInterval(interval);
     }
@@ -320,18 +399,24 @@ export const UserProvider = ({ children }) => {
                 (n.type === 'match_found_player' || n.type === 'match_assigned_mediator')
             );
 
-            if (matchNotification && matchNotification.matchId) { // ✅ verificação corrigida
+            if (matchNotification && matchNotification.matchId) {
                 console.log('Notificação de partida encontrada com ID:', matchNotification.matchId);
                 getMatchDetails(matchNotification.matchId).then(matchData => {
                     if (matchData && matchData.success) {
                         setCurrentMatch(matchData.match);
+                        // Adicionar lógica para sair da fila aqui, se a notificação indicar isso
+                        if (matchNotification.type === 'match_found_player') {
+                            setIsInBetQueue(false);
+                        } else if (matchNotification.type === 'match_assigned_mediator') {
+                            setIsInMediationQueue(false);
+                        }
                         markNotificationsAsRead([matchNotification.id]);
                     }
                 });
             }
         }
-    }, [notifications, getMatchDetails, markNotificationsAsRead]); 
-    
+    }, [notifications, getMatchDetails, markNotificationsAsRead, setIsInBetQueue, setIsInMediationQueue]); 
+     
     useEffect(() => {
         fetchUser();
     }, [fetchUser]);
@@ -370,7 +455,10 @@ export const UserProvider = ({ children }) => {
             completeMediation,
             updateMediationStats,
             conversations,
-        fetchConversations,
+            fetchConversations,
+            // NOVAS FUNÇÕES ADICIONADAS
+            confirmMatch,
+            cancelMatch,
         }}>
             {children}
         </UserContext.Provider>
@@ -378,3 +466,4 @@ export const UserProvider = ({ children }) => {
 };
 
 export default UserContext;
+

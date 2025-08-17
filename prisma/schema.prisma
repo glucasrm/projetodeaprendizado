@@ -178,7 +178,7 @@ model Match {
   modality          String
   platform          String
   gameSlug          String?            // Adicionado para registrar o jogo da partida. Torne opcional (?) se nem todas as partidas tiverem um jogo.
-  status            String             @default("PENDING_MEDIATION") // PENDING_MEDIATION, IN_PROGRESS, COMPLETED, CANCELED, FINISHED
+  status            String   // Valores possíveis: PENDING_CONFIRMATION, IN_PROGRESS, COMPLETED, CANCELLED
   chatRoomId        String?            @unique // ID para o chat
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
@@ -187,6 +187,11 @@ model Match {
   directBets        DirectBet[]
   conversation      Conversation?
   notifications     Notification[]
+
+    // NOVOS CAMPOS PARA CONFIRMAÇÃO
+  player1Confirmed  Boolean  @default(false)
+  player2Confirmed  Boolean  @default(false)
+  mediatorConfirmed Boolean  @default(false)
 
   @@map("matches")
 }

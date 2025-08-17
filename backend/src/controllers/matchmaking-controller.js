@@ -1,3 +1,5 @@
+// src/controllers/matchmaking-controller.js (VERSÃO MODIFICADA COM CONFIRMAÇÃO)
+
 class MatchmakingController {
   constructor(matchmakingService) {
     this.matchmakingService = matchmakingService;
@@ -19,6 +21,7 @@ class MatchmakingController {
       return reply.status(500).send({ message: "Erro ao entrar na fila de apostas.", error: error.message });
     }
   }
+
 async joinMediationQueue(request, reply) {
   const { modalities, platforms } = request.body;
   const mediatorId = request.user.sub; // ID do usuário autenticado
@@ -35,7 +38,6 @@ async joinMediationQueue(request, reply) {
     return reply.status(500).send({ message: "Erro ao entrar na fila de mediação.", error: error.message });
   }
 }
-
 
   async leaveQueue(request, reply) {
     const { role } = request.body;
@@ -70,6 +72,42 @@ async joinMediationQueue(request, reply) {
     } catch (error) {
       request.log.error(error);
       return reply.status(500).send({ message: "Erro ao finalizar mediação.", error: error.message });
+    }
+  }
+
+  // NOVO MÉTODO: Confirmar participação na partida
+  async confirmMatch(request, reply) {
+    const { matchId } = request.params;
+    const userId = request.user.sub; // ID do usuário autenticado
+
+    if (!userId) {
+      return reply.status(401).send({ message: "Usuário não autenticado." });
+    }
+
+    try {
+      const result = await this.matchmakingService.confirmMatch(matchId, userId);
+      return reply.send(result);
+    } catch (error) {
+      request.log.error(error);
+      return reply.status(500).send({ message: "Erro ao confirmar partida.", error: error.message });
+    }
+  }
+
+  // NOVO MÉTODO: Cancelar partida
+  async cancelMatch(request, reply) {
+    const { matchId } = request.params;
+    const userId = request.user.sub; // ID do usuário autenticado
+
+    if (!userId) {
+      return reply.status(401).send({ message: "Usuário não autenticado." });
+    }
+
+    try {
+      const result = await this.matchmakingService.cancelMatch(matchId, userId);
+      return reply.send(result);
+    } catch (error) {
+      request.log.error(error);
+      return reply.status(500).send({ message: "Erro ao cancelar partida.", error: error.message });
     }
   }
 
@@ -116,6 +154,7 @@ async joinMediationQueue(request, reply) {
       return reply.status(500).send({ message: "Erro ao enviar mensagem.", error: error.message });
     }
   }
+  
   async listUserConversations(request, reply) {
     const userId = request.user.sub;
     try {

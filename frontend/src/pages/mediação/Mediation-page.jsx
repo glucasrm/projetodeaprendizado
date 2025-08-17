@@ -1,7 +1,8 @@
-// src/pages/mediation/Mediation-page.jsx
+// src/pages/mediation/Mediation-page.jsx (VERSÃO MELHORADA)
 import React, { useState, useContext, useEffect } from 'react';
 import { UserContext } from '../../context/UserContext';
 import { useNavigate } from 'react-router-dom';
+import MatchRedirect from '../../components/apostado/MatchRedirect';
 
 const MediationPage = () => {
     const { user, login, isInMediationQueue, joinMediationQueue, leaveQueue, currentMatch, loading } = useContext(UserContext);
@@ -18,87 +19,68 @@ const MediationPage = () => {
         { value: '3v3', label: '3x3' },
         { value: '4v4', label: '4x4' }
     ];
-
+    
     const PLATFORMS = [
         { value: 'Mobile', label: 'Mobile' },
         { value: 'Emulador', label: 'Emulador' }
     ];
 
- useEffect(() => {
-        // Se o estado global `currentMatch` for preenchido, navegue!
-        if (currentMatch && currentMatch.id) {
-            navigate(`/mediacao/chat/${currentMatch.id}`);
-        }
-    }, [currentMatch, navigate]);
-
-    useEffect(() => {
-        // Redireciona se um confronto for encontrado e houver um chatRoomId
-        if (currentMatch && currentMatch.chatRoomId) {
-            navigate(`/mediacao/chat/${currentMatch.chatRoomId}`);
-        }
-    }, [currentMatch, navigate]);
+    // Função para lidar com redirecionamento customizado
+    const handleRedirect = (path, match, userType) => {
+        console.log(`[MediationPage] Redirecionando mediador para: ${path}`);
+        setMessage('Partida encontrada! Redirecionando para o chat...');
+    };
 
     const handleModalityChange = (modality) => {
-        setSelectedModalities(prev => {
-            if (prev.includes(modality)) {
-                return prev.filter(m => m !== modality);
-            } else {
-                return [...prev, modality];
-            }
-        });
+        setSelectedModalities(prev => 
+            prev.includes(modality) 
+                ? prev.filter(m => m !== modality)
+                : [...prev, modality]
+        );
     };
 
     const handlePlatformChange = (platform) => {
-        setSelectedPlatforms(prev => {
-            if (prev.includes(platform)) {
-                return prev.filter(p => p !== platform);
-            } else {
-                return [...prev, platform];
-            }
-        });
+        setSelectedPlatforms(prev => 
+            prev.includes(platform) 
+                ? prev.filter(p => p !== platform)
+                : [...prev, platform]
+        );
     };
 
     const handleJoinQueue = async () => {
         setMessage('');
         setError('');
-if (!user || !login) {
-        setError('Você precisa estar logado para mediar partidas.');
-        return;
-    }
-
-    if (selectedModalities.length === 0) {
-        setError('Selecione pelo menos uma modalidade.');
-        return;
-    }
-
-    if (selectedPlatforms.length === 0) {
-        setError('Selecione pelo menos uma plataforma.');
-        return;
-    }
-
-    try {
-        const result = await joinMediationQueue(selectedModalities, selectedPlatforms); // Chama a API
-
-        if (result.success) {
-            setMessage(result.message);
-        } else {
-            setError(result.message || 'Erro ao entrar na fila de mediação.');
+        
+        if (!user || !login) {
+            setError('Você precisa estar logado para mediar.');
+            return;
         }
-    } catch (err) {
-        setError('Erro na comunicação com o servidor.');
-        console.error(err);
-    }
+        
+        if (!user.isAdmin) {
+            setError('Apenas administradores podem mediar partidas.');
+            return;
+        }
+        
+        if (selectedModalities.length === 0 || selectedPlatforms.length === 0) {
+            setError('Selecione pelo menos uma modalidade e plataforma.');
+            return;
+        }
 
-        // Aqui você chamaria a função do contexto para entrar na fila de mediação
-        // const result = await joinMediationQueue(selectedModalities, selectedPlatforms);
-        
-        // Por enquanto, simulamos a entrada na fila
-        const result = { success: true, message: 'Você entrou na fila de mediação!' };
-        
-        if (result.success) {
-            setMessage(result.message);
-        } else {
-            setError(result.message);
+        try {
+            const result = await joinMediationQueue(selectedModalities, selectedPlatforms);
+            if (result.success) {
+                setMessage(result.message);
+                
+                // Se já encontrou uma partida imediatamente
+                if (result.match) {
+                    setMessage('Partida encontrada! Redirecionando...');
+                }
+            } else {
+                setError(result.message || 'Erro ao entrar na fila.');
+            }
+        } catch (err) {
+            setError('Erro na comunicação com o servidor.');
+            console.error('[MediationPage] Erro ao entrar na fila:', err);
         }
     };
 
@@ -106,175 +88,211 @@ if (!user || !login) {
         setMessage('');
         setError('');
         
-        // Aqui você chamaria a função do contexto para sair da fila
-        // const result = await leaveQueue('mediator');
         try {
-        const result = await leaveQueue('mediator'); // Chama a API de verdade
-
-        if (result.success) {
-            setMessage(result.message);
-        } else {
-            setError(result.message || 'Erro ao sair da fila de mediação.');
-        }
-    } catch (err) {
-        setError('Erro na comunicação com o servidor.');
-        console.error(err);
-    }
-        // Por enquanto, simulamos a saída da fila
-        const result = { success: true, message: 'Você saiu da fila de mediação.' };
-        
-        if (result.success) {
-            setMessage(result.message);
-        } else {
-            setError(result.message);
+            const result = await leaveQueue('mediator');
+            if (result.success) {
+                setMessage(result.message);
+            } else {
+                setError(result.message || 'Erro ao sair da fila.');
+            }
+        } catch (err) {
+            setError('Erro na comunicação com o servidor.');
+            console.error('[MediationPage] Erro ao sair da fila:', err);
         }
     };
 
+    // Verificação de loading
     if (loading) {
-        return <p className="text-center text-lg text-gray-400 mt-10">Carregando...</p>;
+        return (
+            <div className="flex items-center justify-center h-screen bg-gray-900 text-white">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-400 mx-auto mb-4"></div>
+                    <p className="text-lg">Carregando...</p>
+                </div>
+            </div>
+        );
     }
 
+    // Verificação de login
     if (!login) {
-        return <p className="text-center text-lg text-red-500 mt-10">Por favor, faça login para acessar a mediação.</p>;
+        return (
+            <div className="flex items-center justify-center h-screen bg-gray-900 text-white">
+                <div className="text-center">
+                    <p className="text-xl mb-4">Você precisa estar logado para acessar a mediação.</p>
+                    <button 
+                        onClick={() => navigate('/login')}
+                        className="bg-purple-600 hover:bg-purple-700 px-6 py-2 rounded-lg"
+                    >
+                        Fazer Login
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    // Verificação de permissão de admin
+    if (!user.isAdmin) {
+        return (
+            <div className="flex items-center justify-center h-screen bg-gray-900 text-white">
+                <div className="text-center">
+                    <p className="text-xl mb-4">Apenas administradores podem acessar a mediação.</p>
+                    <button 
+                        onClick={() => navigate('/games')}
+                        className="bg-purple-600 hover:bg-purple-700 px-6 py-2 rounded-lg"
+                    >
+                        Voltar aos Jogos
+                    </button>
+                </div>
+            </div>
+        );
     }
 
     return (
-        <div className="bg-gray-800 text-gray-100 p-8 rounded-xl max-w-2xl mx-auto my-10 shadow-2xl font-sans">
-            <h2 className="text-purple-400 text-4xl font-extrabold text-center mb-6 tracking-wide">
-                Mediação de Partidas
-            </h2>
+        <MatchRedirect 
+            userType="mediator" 
+            allowedPaths={['/mediacao/chat/']}
+            onRedirect={handleRedirect}
+            showLoadingOnRedirect={true}
+        >
+            <div className="bg-gray-800 text-gray-100 p-8 rounded-xl max-w-2xl mx-auto my-10 shadow-2xl font-sans">
+                <h2 className="text-purple-400 text-4xl font-extrabold text-center mb-6 tracking-wide">
+                    Mediação de Partidas
+                </h2>
 
-            {message && (
-                <p className="bg-green-600 text-white p-3 rounded-lg mb-5 text-center font-semibold">
-                    {message}
-                </p>
-            )}
-            {error && (
-                <p className="bg-red-600 text-white p-3 rounded-lg mb-5 text-center font-semibold">
-                    {error}
-                </p>
-            )}
-
-            {user && (
-                <div className="text-center bg-gray-700 p-4 rounded-lg mb-6 border border-gray-600">
-                    <p className="text-lg">
-                        Bem-vindo, <span className="font-bold text-purple-400">{user.username}</span>
+                {message && (
+                    <p className="bg-green-600 text-white p-3 rounded-lg mb-5 text-center font-semibold">
+                        {message}
                     </p>
-                    <p className="text-sm text-gray-300 mt-1">
-                        Como mediador, você ajudará a garantir partidas justas e organizadas.
+                )}
+                {error && (
+                    <p className="bg-red-600 text-white p-3 rounded-lg mb-5 text-center font-semibold">
+                        {error}
                     </p>
-                </div>
-            )}
+                )}
 
-            {isInMediationQueue ? (
-                <div className="bg-gray-700 p-8 rounded-xl text-center border-2 border-purple-500 flex flex-col items-center justify-center space-y-5">
-                    <div className="flex items-center space-x-3">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-400"></div>
-                        <p className="text-xl font-bold text-purple-400">Você está na fila de mediação</p>
+                {user && (
+                    <div className="text-center bg-gray-700 p-4 rounded-lg mb-6 border border-gray-600">
+                        <p className="text-lg">
+                            Bem-vindo, <span className="font-bold text-purple-400">{user.username}</span>
+                        </p>
+                        <p className="text-sm text-gray-300 mt-1">
+                            Como mediador, você ajudará a garantir partidas justas e organizadas.
+                        </p>
                     </div>
-                    <p className="text-lg text-gray-300">Aguardando partida para mediar...</p>
-                    <div className="bg-gray-600 p-4 rounded-lg">
-                        <p className="text-sm text-gray-300 mb-2">Modalidades selecionadas:</p>
-                        <div className="flex flex-wrap gap-2 justify-center">
-                            {selectedModalities.map(mod => (
-                                <span key={mod} className="bg-purple-600 px-3 py-1 rounded-full text-sm">
-                                    {MODALITIES.find(m => m.value === mod)?.label}
-                                </span>
-                            ))}
-                        </div>
-                        <p className="text-sm text-gray-300 mb-2 mt-3">Plataformas selecionadas:</p>
-                        <div className="flex flex-wrap gap-2 justify-center">
-                            {selectedPlatforms.map(plat => (
-                                <span key={plat} className="bg-purple-600 px-3 py-1 rounded-full text-sm">
-                                    {plat}
-                                </span>
-                            ))}
-                        </div>
-                    </div>
-                    <button
-                        onClick={handleLeaveQueue}
-                        className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-8 rounded-lg text-lg transition duration-300 ease-in-out transform hover:scale-105 shadow-lg"
-                    >
-                        Sair da Fila
-                    </button>
-                </div>
-            ) : (
-                <div className="space-y-6">
-                    {/* Seleção de Modalidades */}
-                    <div className="flex flex-col">
-                        <label className="mb-3 text-lg font-medium text-gray-300">
-                            Modalidades que você pode mediar:
-                        </label>
-                        <div className="grid grid-cols-2 gap-3">
-                            {MODALITIES.map((modality) => (
-                                <label
-                                    key={modality.value}
-                                    className={`flex items-center p-3 rounded-lg border-2 cursor-pointer transition duration-200 ${
-                                        selectedModalities.includes(modality.value)
-                                            ? 'border-purple-500 bg-purple-900/30'
-                                            : 'border-gray-600 bg-gray-700 hover:border-purple-400'
-                                    }`}
-                                >
-                                    <input
-                                        type="checkbox"
-                                        checked={selectedModalities.includes(modality.value)}
-                                        onChange={() => handleModalityChange(modality.value)}
-                                        className="mr-3 w-4 h-4 text-purple-600 bg-gray-700 border-gray-600 rounded focus:ring-purple-500"
-                                    />
-                                    <span className="text-gray-100">{modality.label}</span>
-                                </label>
-                            ))}
-                        </div>
-                    </div>
+                )}
 
-                    {/* Seleção de Plataformas */}
-                    <div className="flex flex-col">
-                        <label className="mb-3 text-lg font-medium text-gray-300">
-                            Plataformas que você pode mediar:
-                        </label>
-                        <div className="grid grid-cols-2 gap-3">
-                            {PLATFORMS.map((platform) => (
-                                <label
-                                    key={platform.value}
-                                    className={`flex items-center p-3 rounded-lg border-2 cursor-pointer transition duration-200 ${
-                                        selectedPlatforms.includes(platform.value)
-                                            ? 'border-purple-500 bg-purple-900/30'
-                                            : 'border-gray-600 bg-gray-700 hover:border-purple-400'
-                                    }`}
-                                >
-                                    <input
-                                        type="checkbox"
-                                        checked={selectedPlatforms.includes(platform.value)}
-                                        onChange={() => handlePlatformChange(platform.value)}
-                                        className="mr-3 w-4 h-4 text-purple-600 bg-gray-700 border-gray-600 rounded focus:ring-purple-500"
-                                    />
-                                    <span className="text-gray-100">{platform.label}</span>
-                                </label>
-                            ))}
+                {isInMediationQueue ? (
+                    <div className="bg-gray-700 p-8 rounded-xl text-center border-2 border-purple-500 flex flex-col items-center justify-center space-y-5">
+                        <div className="flex items-center space-x-3">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-400"></div>
+                            <p className="text-xl font-bold text-purple-400">Você está na fila de mediação</p>
                         </div>
+                        <p className="text-lg text-gray-300">Aguardando partida para mediar...</p>
+                        
+                        <div className="bg-gray-600 p-4 rounded-lg">
+                            <p className="text-sm text-gray-300 mb-2">Modalidades selecionadas:</p>
+                            <div className="flex flex-wrap gap-2 justify-center">
+                                {selectedModalities.map(mod => (
+                                    <span key={mod} className="bg-purple-600 px-3 py-1 rounded-full text-sm">
+                                        {MODALITIES.find(m => m.value === mod)?.label}
+                                    </span>
+                                ))}
+                            </div>
+                            <p className="text-sm text-gray-300 mb-2 mt-3">Plataformas selecionadas:</p>
+                            <div className="flex flex-wrap gap-2 justify-center">
+                                {selectedPlatforms.map(plat => (
+                                    <span key={plat} className="bg-purple-600 px-3 py-1 rounded-full text-sm">
+                                        {plat}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                        
+                        <button
+                            onClick={handleLeaveQueue}
+                            className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-8 rounded-lg text-lg transition duration-300 ease-in-out transform hover:scale-105 shadow-lg"
+                        >
+                            Sair da Fila
+                        </button>
                     </div>
+                ) : (
+                    <div className="space-y-6">
+                        {/* Seleção de Modalidades */}
+                        <div className="flex flex-col">
+                            <label className="mb-3 text-lg font-medium text-gray-300">
+                                Modalidades que você pode mediar:
+                            </label>
+                            <div className="grid grid-cols-2 gap-3">
+                                {MODALITIES.map((modality) => (
+                                    <label
+                                        key={modality.value}
+                                        className={`flex items-center p-3 rounded-lg border-2 cursor-pointer transition duration-200 ${
+                                            selectedModalities.includes(modality.value)
+                                                ? 'border-purple-500 bg-purple-900/30'
+                                                : 'border-gray-600 bg-gray-700 hover:border-purple-400'
+                                        }`}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedModalities.includes(modality.value)}
+                                            onChange={() => handleModalityChange(modality.value)}
+                                            className="mr-3 w-4 h-4 text-purple-600 bg-gray-700 border-gray-600 rounded focus:ring-purple-500"
+                                        />
+                                        <span className="text-gray-100">{modality.label}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
 
-                    {/* Informações sobre mediação */}
-                    <div className="bg-gray-700 p-4 rounded-lg border border-gray-600">
-                        <h3 className="text-purple-400 font-bold mb-2">Como funciona a mediação:</h3>
-                        <ul className="text-sm text-gray-300 space-y-1">
-                            <li>• Você será conectado a partidas que precisam de mediação</li>
-                            <li>• Garanta que as regras sejam seguidas</li>
-                            <li>• Resolva disputas entre os jogadores</li>
-                            <li>• Confirme os resultados das partidas</li>
-                        </ul>
+                        {/* Seleção de Plataformas */}
+                        <div className="flex flex-col">
+                            <label className="mb-3 text-lg font-medium text-gray-300">
+                                Plataformas que você pode mediar:
+                            </label>
+                            <div className="grid grid-cols-2 gap-3">
+                                {PLATFORMS.map((platform) => (
+                                    <label
+                                        key={platform.value}
+                                        className={`flex items-center p-3 rounded-lg border-2 cursor-pointer transition duration-200 ${
+                                            selectedPlatforms.includes(platform.value)
+                                                ? 'border-purple-500 bg-purple-900/30'
+                                                : 'border-gray-600 bg-gray-700 hover:border-purple-400'
+                                        }`}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedPlatforms.includes(platform.value)}
+                                            onChange={() => handlePlatformChange(platform.value)}
+                                            className="mr-3 w-4 h-4 text-purple-600 bg-gray-700 border-gray-600 rounded focus:ring-purple-500"
+                                        />
+                                        <span className="text-gray-100">{platform.label}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Informações sobre mediação */}
+                        <div className="bg-gray-700 p-4 rounded-lg border border-gray-600">
+                            <h3 className="text-purple-400 font-bold mb-2">Como funciona a mediação:</h3>
+                            <ul className="text-sm text-gray-300 space-y-1">
+                                <li>• Você será conectado a partidas que precisam de mediação</li>
+                                <li>• Garanta que as regras sejam seguidas</li>
+                                <li>• Resolva disputas entre os jogadores</li>
+                                <li>• Confirme os resultados das partidas</li>
+                            </ul>
+                        </div>
+
+                        <button
+                            onClick={handleJoinQueue}
+                            disabled={selectedModalities.length === 0 || selectedPlatforms.length === 0}
+                            className="w-full bg-purple-500 hover:bg-purple-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold py-3 px-8 rounded-lg text-xl transition duration-300 ease-in-out transform hover:scale-105 shadow-lg"
+                        >
+                            Entrar na Fila de Mediação
+                        </button>
                     </div>
-
-                    <button
-                        onClick={handleJoinQueue}
-                        disabled={selectedModalities.length === 0 || selectedPlatforms.length === 0}
-                        className="w-full bg-purple-500 hover:bg-purple-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold py-3 px-8 rounded-lg text-xl transition duration-300 ease-in-out transform hover:scale-105 shadow-lg"
-                    >
-                        Entrar na Fila de Mediação
-                    </button>
-                </div>
-            )}
-        </div>
+                )}
+            </div>
+        </MatchRedirect>
     );
 };
 
