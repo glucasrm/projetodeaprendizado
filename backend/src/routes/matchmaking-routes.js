@@ -55,6 +55,12 @@ async function matchmakingRoutes(fastify, options) {
     { onRequest: [fastify.authenticate] },
     (request, reply) => matchmakingController.sendMessage(request, reply)
   );
+  
+  fastify.get(
+    "/conversations",
+    { onRequest: [fastify.authenticate] },
+    (request, reply) => matchmakingController.listUserConversations(request, reply)
+  );
 }
 
 export default matchmakingRoutes;

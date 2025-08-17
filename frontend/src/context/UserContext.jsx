@@ -1,4 +1,3 @@
-// src/context/UserContext.jsx (ATUALIZADO COM MEDIAÇÃO)
 import React, { createContext, useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 
@@ -12,16 +11,9 @@ export const UserProvider = ({ children }) => {
     const [isInBetQueue, setIsInBetQueue] = useState(false);
     const [currentBetId, setCurrentBetId] = useState(null);
     
-    // Estados de mediação existentes no UserContext do usuário
+    // --- Mediação ---
     const [isInMediationQueue, setIsInMediationQueue] = useState(false);
     const [currentMatch, setCurrentMatch] = useState(null); 
-
-    // --- NOVOS ESTADOS PARA NOTIFICAÇÕES ---
-    const [notifications, setNotifications] = useState([]);
-    const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
-    // ---
-
-    // --- NOVOS ESTADOS PARA MEDIAÇÃO (ADICIONADOS/AJUSTADOS) ---
     const [mediationPreferences, setMediationPreferences] = useState({
         modalities: [],
         platforms: []
@@ -32,7 +24,12 @@ export const UserProvider = ({ children }) => {
         rating: 0,
         totalEarnings: 0,
     });
-    // ---
+
+    // --- Notificações ---
+    const [notifications, setNotifications] = useState([]);
+    const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
+
+    const [conversations, setConversations] = useState([]);
 
     const fetchUser = useCallback(async () => {
         const token = localStorage.getItem('token');
@@ -106,7 +103,7 @@ export const UserProvider = ({ children }) => {
             setNotifications(prev =>
                 prev.map(n => notificationIds.includes(n.id) ? { ...n, read: true } : n)
             );
-            setUnreadNotificationsCount(prev => prev - notificationIds.length);
+            setUnreadNotificationsCount(prev => Math.max(0, prev - notificationIds.length)); // ✅ CORRIGIDO
             return { success: true, message: 'Notificações marcadas como lidas.' };
         } catch (error) {
             console.error('Erro ao marcar notificações como lidas:', error);
@@ -121,7 +118,7 @@ export const UserProvider = ({ children }) => {
         setIsInBetQueue(false);
         setCurrentBetId(null);
         setIsInMediationQueue(false);
-        setCurrentMatch(null); // Resetar currentMatch no logout
+        setCurrentMatch(null); 
         setNotifications([]);
         setUnreadNotificationsCount(0);
         setMediationPreferences({ modalities: [], platforms: [] });
@@ -170,7 +167,6 @@ export const UserProvider = ({ children }) => {
         }
     };
 
-    // Função joinMediationQueue atualizada para aceitar modalidades e plataformas
     const joinMediationQueue = async (modalities, platforms) => {
         if (!user || !login || !user.isAdmin) {
             return { success: false, message: "Você precisa ser um administrador logado para mediar." };
@@ -182,7 +178,7 @@ export const UserProvider = ({ children }) => {
         try {
             const token = localStorage.getItem('token');
             const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/matchmaking/mediation/join-queue`, 
-                { modalities, platforms }, // Enviando modalidades e plataformas
+                { modalities, platforms },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 
@@ -190,7 +186,7 @@ export const UserProvider = ({ children }) => {
 
             if (res.status === 200 || res.status === 202) {
                 setIsInMediationQueue(true);
-                setMediationPreferences({ modalities, platforms }); // Salva as preferências
+                setMediationPreferences({ modalities, platforms }); 
                 if (res.data.matchId) {
                     setCurrentMatch({
                         id: res.data.matchId,
@@ -213,7 +209,6 @@ export const UserProvider = ({ children }) => {
         }
     };
 
-    // Função leaveQueue atualizada para aceitar o tipo de fila
     const leaveQueue = async (role) => {
         if (!user || !login) {
             return { success: false, message: "Usuário não logado." };
@@ -241,25 +236,24 @@ export const UserProvider = ({ children }) => {
         }
     };
 
-    // Nova função para finalizar mediação
     const completeMediation = async (matchId, result) => {
         if (!user || !login || !user.isAdmin) {
             return { success: false, message: "Você não tem permissão para finalizar mediações." };
         }
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/mediation/complete`, 
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/matchmaking/mediation/complete`,  // ✅ rota corrigida
                 { matchId, result, mediatorId: user.id },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
-            fetchUser(); // Atualiza o saldo e estatísticas do usuário
+            fetchUser();
             setMediationStats(prev => ({
                 ...prev,
                 totalMediations: prev.totalMediations + 1,
                 successfulMediations: result !== 'cancelled' ? prev.successfulMediations + 1 : prev.successfulMediations,
                 totalEarnings: prev.totalEarnings + (res.data.reward || 0)
             }));
-            setCurrentMatch(null); // Limpa a partida atual após a finalização
+            setCurrentMatch(null);
             return { success: true, message: res.data.message, reward: res.data.reward };
         } catch (error) {
             console.error('Erro ao finalizar mediação:', error.response?.data || error.message);
@@ -281,7 +275,25 @@ export const UserProvider = ({ children }) => {
         }
     };
 
-    // Função para atualizar estatísticas de mediação (pode ser chamada pelo backend ou manualmente)
+    const fetchConversations = useCallback(async () => {
+    if (!login) {
+        setConversations([]);
+        return;
+    }
+    const token = localStorage.getItem('token');
+    try {
+        const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/matchmaking/conversations`, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        if (response.data.success) {
+            setConversations(response.data.conversations);
+        }
+    } catch (error) {
+        console.error('Erro ao buscar conversas:', error);
+        setConversations([]);
+    }
+}, [login]);
+
     const updateMediationStats = (newStats) => {
         setMediationStats(prev => ({
             ...prev,
@@ -289,6 +301,37 @@ export const UserProvider = ({ children }) => {
         }));
     };
 
+    // --- pooling de notificações ---
+    useEffect(() => {
+    if (login) {
+        const interval = setInterval(() => {
+            fetchNotifications();
+            fetchConversations(); // Busque as conversas também
+        }, 10000);
+        return () => clearInterval(interval);
+    }
+}, [login, fetchNotifications, fetchConversations]);
+
+    // --- reação a notificações de partida ---
+    useEffect(() => {
+        if (notifications.length > 0) {
+            const matchNotification = notifications.find(n => 
+                !n.read && 
+                (n.type === 'match_found_player' || n.type === 'match_assigned_mediator')
+            );
+
+            if (matchNotification && matchNotification.matchId) { // ✅ verificação corrigida
+                console.log('Notificação de partida encontrada com ID:', matchNotification.matchId);
+                getMatchDetails(matchNotification.matchId).then(matchData => {
+                    if (matchData && matchData.success) {
+                        setCurrentMatch(matchData.match);
+                        markNotificationsAsRead([matchNotification.id]);
+                    }
+                });
+            }
+        }
+    }, [notifications, getMatchDetails, markNotificationsAsRead]); 
+    
     useEffect(() => {
         fetchUser();
     }, [fetchUser]);
@@ -322,11 +365,12 @@ export const UserProvider = ({ children }) => {
             unreadNotificationsCount,
             fetchNotifications,
             markNotificationsAsRead,
-            // Novos valores para mediação
             mediationPreferences,
             mediationStats,
             completeMediation,
             updateMediationStats,
+            conversations,
+        fetchConversations,
         }}>
             {children}
         </UserContext.Provider>

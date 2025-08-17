@@ -116,6 +116,16 @@ async joinMediationQueue(request, reply) {
       return reply.status(500).send({ message: "Erro ao enviar mensagem.", error: error.message });
     }
   }
+  async listUserConversations(request, reply) {
+    const userId = request.user.sub;
+    try {
+        const result = await this.matchmakingService.listUserConversations(userId);
+        return reply.send(result);
+    } catch (error) {
+        request.log.error(error);
+        return reply.status(500).send({ message: "Erro ao buscar conversas.", error: error.message });
+    }
+}
 }
 
 export default MatchmakingController;

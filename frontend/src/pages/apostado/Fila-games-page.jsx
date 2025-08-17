@@ -1,11 +1,12 @@
 // src/pages/apostado/Apostado-games-page.jsx
 import React, { useState, useContext, useEffect } from 'react';
 import { UserContext } from '../../context/UserContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 
 const BettingForm = () => {
-    const { user, login, loading, isInBetQueue, joinBetQueue, leaveQueue, currentMatch, setCurrentMatch } = useContext(UserContext);
+    const { user, login, isAdmin, loading, isInBetQueue, joinBetQueue, leaveQueue, currentMatch } = useContext(UserContext);
     const navigate = useNavigate();
+    const { slug } = useParams(); 
 
     const BET_OPTIONS = [2, 3, 5, 7, 10, 15, 20, 50, 100];
     const [betAmount, setBetAmount] = useState(BET_OPTIONS[0].toString());
@@ -13,6 +14,14 @@ const BettingForm = () => {
     const [platform, setPlatform] = useState('Mobile');
     const [message, setMessage] = useState('');
     const [error, setError] = useState('');
+
+ useEffect(() => {
+        // Se o estado global `currentMatch` for preenchido, navegue!
+        if (currentMatch && currentMatch.id) {
+            // A rota deve ser para a sala da partida, que pode ser a mesma do mediador
+            navigate(`/mediacao/chat/${currentMatch.id}`);
+        }
+    }, [currentMatch, navigate]);
 
     useEffect(() => {
         // Redireciona se um confronto for encontrado e houver um chatRoomId
@@ -43,7 +52,7 @@ const BettingForm = () => {
             return;
         }
 
-        const result = await joinBetQueue(parsedBetAmount, modality, platform);
+        const result = await joinBetQueue(parsedBetAmount, modality, platform, slug);
         if (result.success) {
             setMessage(result.message);
         } else {
@@ -70,6 +79,9 @@ const BettingForm = () => {
         return <p className="text-center text-lg text-red-500 mt-10">Por favor, faça login para acessar as apostas.</p>;
     }
 
+
+
+    
     return (
         <div className="bg-gray-800 text-gray-100 p-8 rounded-xl max-w-2xl mx-auto my-10 shadow-2xl font-sans">
             <h2 className="text-sky-400 text-4xl font-extrabold text-center mb-6 tracking-wide">Faça uma Aposta Direta</h2>

@@ -24,6 +24,13 @@ const MediationPage = () => {
         { value: 'Emulador', label: 'Emulador' }
     ];
 
+ useEffect(() => {
+        // Se o estado global `currentMatch` for preenchido, navegue!
+        if (currentMatch && currentMatch.id) {
+            navigate(`/mediacao/chat/${currentMatch.id}`);
+        }
+    }, [currentMatch, navigate]);
+
     useEffect(() => {
         // Redireciona se um confronto for encontrado e houver um chatRoomId
         if (currentMatch && currentMatch.chatRoomId) {

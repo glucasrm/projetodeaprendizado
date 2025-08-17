@@ -1,28 +1,33 @@
 // src/controllers/notifications-controller.js
+
 import prisma from '../lib/prisma.js';
 import { z } from 'zod';
+
 /**
  * Lista notificações do usuário logado
  */
 export async function listNotifications(request, reply) {
-   console.log('User ID from token:', request.user?.sub);
+  console.log('User ID from token:', request.user?.sub);
   const userId = request.user.sub;
 
   const notifications = await prisma.notification.findMany({
     where: { userId },
-    orderBy: { createdAt: 'desc' }
+    orderBy: { createdAt: 'desc' },
+    // --- CORREÇÃO APLICADA AQUI ---
+    include: {
+      match: true // Garante que os dados da partida, incluindo o ID, sejam incluídos
+    }
   });
 
   // Mapear notificações para parsear o campo 'content' se for JSON
   const formattedNotifications = notifications.map(notification => {
     if (notification.content) {
       try {
-        // Tentativa de parsear o content se for um JSON string
         const parsedContent = JSON.parse(notification.content);
         return { ...notification, content: parsedContent };
       } catch (e) {
-        // Se não for JSON válido, manter como string e logar um aviso
-        console.warn('Conteúdo da notificação não é JSON válido ou já é um objeto:', notification.content);
+        // Se não for JSON válido, manter como string
+        // console.warn('Conteúdo da notificação não é JSON válido ou já é um objeto:', notification.content);
       }
     }
     return notification;
@@ -72,21 +77,25 @@ export async function markAllNotificationsAsRead(request, reply) {
   });
 
   return reply.send({ success: true });
-  
-}export async function markNotificationsAsReadBatch(request, reply) {
+}
+
+/**
+ * Marca uma lista de notificações como lidas
+ */
+export async function markNotificationsAsReadBatch(request, reply) {
     const userId = request.user.sub;
     const { notificationIds } = z.object({
         notificationIds: z.array(z.string().uuid()),
-    }).parse(request.body); // Valida o array de IDs
+    }).parse(request.body);
 
     try {
         const updatedNotifications = await prisma.notification.updateMany({
             where: {
                 id: {
-                    in: notificationIds, // IDs na lista fornecida
+                    in: notificationIds,
                 },
-                userId: userId, // Garante que o usuário só possa marcar suas próprias
-                read: false, // Opcional: só marca as que não estão lidas
+                userId: userId,
+                read: false,
             },
             data: {
                 read: true,

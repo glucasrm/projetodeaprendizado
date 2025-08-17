@@ -96,17 +96,17 @@ class MatchmakingService {
 
             await self.notificationService.createNotification(
               p1.id, 'match_found_player', `Seu confronto 🏆 1v1 contra ${player2Name} foi encontrado!`,
-              { opponentId: p2.id, opponentName: player2Name, matchId: newMatch.id }, `/match/${newMatch.id}`
+              { opponentId: p2.id, opponentName: player2Name, matchId: newMatch.id }, `/mediacao/chat/${newMatch.id}`
             );
 
             await self.notificationService.createNotification(
               p2.id, 'match_found_player', `Seu confronto 🏆 1v1 contra ${player1Name} foi encontrado!`,
-              { opponentId: p1.id, opponentName: player1Name, matchId: newMatch.id }, `/match/${newMatch.id}`
+              { opponentId: p1.id, opponentName: player1Name, matchId: newMatch.id }, `/mediacao/chat/${newMatch.id}`
             );
 
             await self.notificationService.createNotification(
               availableMediator.mediatorId, 'match_assigned_mediator', `Você foi atribuído para mediar um confronto ⚖️ 1v1 entre ${player1Name} e ${player2Name}.`,
-              { player1Id: p1.id, player1Name, player2Id: p2.id, player2Name, matchId: newMatch.id }, `/match/${newMatch.id}`
+              { player1Id: p1.id, player1Name, player2Id: p2.id, player2Name, matchId: newMatch.id }, `/mediacao/chat/${newMatch.id}`
             );
 
             return { match: newMatch };
@@ -174,9 +174,25 @@ class MatchmakingService {
 
   async getMatchDetails(matchId) {
     console.log(`Fetching details for match ${matchId}`);
-    const match = await this.prisma.match.findUnique({
+     const match = await this.prisma.match.findUnique({
       where: { id: matchId },
-      include: { player1: true, player2: true, mediator: true, conversation: true },
+      include: {
+        // Inclua o perfil de cada participante
+        player1: { include: { profile: true } },
+        player2: { include: { profile: true } },
+        mediator: { include: { profile: true } },
+        // Inclua as mensagens e o perfil de quem enviou cada uma
+        conversation: {
+          include: {
+            messages: {
+              include: {
+                sender: { include: { profile: true } }
+              },
+              orderBy: { createdAt: 'asc' }
+            }
+          }
+        }
+      },
     });
     return { success: true, match };
   }
@@ -190,17 +206,64 @@ class MatchmakingService {
     return { success: true, messages: conversation?.messages || [] };
   }
 
-  async sendMessage(chatRoomId, senderId, content, messageType) {
+ async sendMessage(chatRoomId, senderId, content, messageType) {
     console.log(`Sending message in room ${chatRoomId} from ${senderId}: ${content}`);
+    // --- INÍCIO DA CORREÇÃO ---
     const message = await this.prisma.message.create({
       data: {
         conversation: { connect: { matchId: chatRoomId } },
         sender: { connect: { id: senderId } },
         content,
       },
+      // Inclua os dados do remetente na resposta
+      include: {
+        sender: {
+          include: {
+            profile: true
+          }
+        }
+      }
     });
     return { success: true, message };
+    
   }
+
+
+async listUserConversations(userId) {
+    console.log(`Buscando todas as conversas para o usuário ${userId}`);
+    const conversations = await this.prisma.conversation.findMany({
+        where: {
+            participants: {
+                some: {
+                    id: userId,
+                },
+            },
+        },
+        include: {
+            // Inclui os participantes para sabermos com quem é a conversa
+            participants: {
+                include: {
+                    profile: true,
+                },
+            },
+            // Inclui a última mensagem para exibir na lista de conversas
+            messages: {
+                orderBy: {
+                    createdAt: 'desc',
+                },
+                take: 1,
+            },
+            // Inclui os detalhes da partida para dar contexto
+            match: true,
+        },
+        orderBy: {
+            updatedAt: 'desc',
+        },
+    });
+    return { success: true, conversations };
 }
+
+}
+
 
 export default MatchmakingService;
