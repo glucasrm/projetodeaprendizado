@@ -46,6 +46,9 @@ model User {
   // Seu modelo Bet existente para torneios
   tournamentBets          TournamentBet[]     @relation("TournamentBetsUser")
 
+  // novo relaciomento com estatísticas
+  playerStatistics      PlayerStatistics[]
+
   @@map("users")
 }
 
@@ -193,6 +196,9 @@ model Match {
   player2Confirmed  Boolean  @default(false)
   mediatorConfirmed Boolean  @default(false)
 
+  // novo relaciomento com estatísticas
+  // statistics            MatchStatistics?
+
   @@map("matches")
 }
 
@@ -232,4 +238,63 @@ model Message {
   createdAt     DateTime     @default(now())
 
   @@map("messages")
+}
+// Modelo de dados para estatísticas de jogadores
+// Adicione este modelo ao seu schema.prisma existente
+
+model PlayerStatistics {
+  id                    String   @id @default(uuid())
+  userId                String
+  user                  User     @relation(fields: [userId], references: [id])
+  gameSlug              String   // Para separar estatísticas por jogo
+  
+  // ESTATÍSTICAS OBRIGATÓRIAS (sempre preenchidas)
+  totalMatches          Int      @default(0)  // Total de partidas jogadas
+  wins                  Int      @default(0)  // Vitórias normais
+  losses                Int      @default(0)  // Derrotas normais
+  winsWO                Int      @default(0)  // Vitórias por W.O
+  lossesWO              Int      @default(0)  // Derrotas por W.O
+  
+  // ESTATÍSTICAS OPCIONAIS (nem sempre preenchidas)
+  kills                 Int      @default(0)  // Total de kills
+  assists               Int      @default(0)  // Total de assistências
+  caps                  Int      @default(0)  // Total de capas
+  
+  // CONTADORES DE PRECISÃO (para calcular médias corretas)
+  matchesWithKills      Int      @default(0)  // Quantas partidas tiveram kills informados
+  matchesWithAssists    Int      @default(0)  // Quantas partidas tiveram assists informados
+  matchesWithCaps       Int      @default(0)  // Quantas partidas tiveram capas informados
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  // Índice único para evitar duplicatas por usuário/jogo
+  @@unique([userId, gameSlug])
+  @@map("player_statistics")
+}
+
+// Modelo para armazenar estatísticas detalhadas de cada partida
+model MatchStatistics {
+  id                    String   @id @default(uuid())
+  matchId               String   @unique
+  match                 Match    @relation(fields: [matchId], references: [id])
+  
+  // RESULTADO DA PARTIDA (obrigatório)
+  result                String   // "player1_win", "player2_win", "draw", "player1_wo", "player2_wo", "cancelled"
+  
+  // ESTATÍSTICAS DO JOGADOR 1 (opcionais)
+  player1Kills          Int?     // Kills do jogador 1 (null se não informado)
+  player1Assists       Int?     // Assists do jogador 1 (null se não informado)
+  player1Caps          Int?     // Capas do jogador 1 (null se não informado)
+  
+  // ESTATÍSTICAS DO JOGADOR 2 (opcionais)
+  player2Kills          Int?     // Kills do jogador 2 (null se não informado)
+  player2Assists       Int?     // Assists do jogador 2 (null se não informado)
+  player2Caps          Int?     // Capas do jogador 2 (null se não informado)
+  
+  // METADADOS
+  completedBy           String   // ID do mediador que finalizou
+  completedAt           DateTime @default(now())
+  
+  @@map("match_statistics")
 }

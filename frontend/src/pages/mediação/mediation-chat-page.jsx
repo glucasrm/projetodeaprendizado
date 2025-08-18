@@ -1,4 +1,4 @@
-// src/pages/mediação/mediation-chat-page.jsx (VERSÃO OTIMIZADA - CHAT LIBERADO + CARD COMPACTO)
+// src/pages/mediação/mediation-chat-page.jsx (VERSÃO COM ESTATÍSTICAS)
 
 import React, { useState, useEffect, useContext, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
@@ -22,6 +22,16 @@ const MediationChat = () => {
     // Estados para confirmação
     const [isConfirming, setIsConfirming] = useState(false);
     const [isCanceling, setIsCanceling] = useState(false);
+
+    // NOVOS ESTADOS PARA ESTATÍSTICAS
+    const [statistics, setStatistics] = useState({
+        player1Kills: '',
+        player1Assists: '',
+        player1Caps: '',
+        player2Kills: '',
+        player2Assists: '',
+        player2Caps: '',
+    });
 
     useEffect(() => {
         const fetchMatchData = async () => {
@@ -65,14 +75,48 @@ const MediationChat = () => {
 
     const handleKeyPress = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } };
 
+    // FUNÇÃO MODIFICADA: Finalizar mediação com estatísticas
     const handleCompleteMediation = async () => {
-        if (!matchResult || !match) { alert('Por favor, selecione o resultado da partida.'); return; }
-        const result = await completeMediation(match.id, matchResult);
-        if (result.success) { alert(`Mediação finalizada!`); navigate('/games'); } 
-        else { alert(result.message); }
+        if (!matchResult || !match) { 
+            alert('Por favor, selecione o resultado da partida.'); 
+            return; 
+        }
+
+        // Preparar dados de estatísticas (apenas valores não vazios)
+        const statsData = {};
+        Object.keys(statistics).forEach(key => {
+            const value = statistics[key];
+            if (value !== '' && value !== null && value !== undefined) {
+                const numValue = parseInt(value);
+                if (!isNaN(numValue) && numValue >= 0) {
+                    statsData[key] = numValue;
+                }
+            }
+        });
+
+        try {
+            const result = await completeMediation(match.id, matchResult, statsData);
+            if (result.success) { 
+                alert(`Mediação finalizada com sucesso!`); 
+                navigate('/games'); 
+            } else { 
+                alert(result.message); 
+            }
+        } catch (error) {
+            console.error('Erro ao finalizar mediação:', error);
+            alert('Erro ao finalizar mediação.');
+        }
     };
 
-    // FUNÇÃO: Confirmar participação
+    // Função para atualizar estatísticas
+    const handleStatisticChange = (field, value) => {
+        setStatistics(prev => ({
+            ...prev,
+            [field]: value
+        }));
+    };
+
+    // Função para confirmar participação
     const handleConfirmMatch = async () => {
         if (!match || isConfirming) return;
         
@@ -80,7 +124,6 @@ const MediationChat = () => {
         try {
             const result = await confirmMatch(match.id);
             if (result.success) {
-                // Atualizar os dados da partida
                 const updatedMatchData = await getMatchDetails(match.id);
                 if (updatedMatchData?.success && updatedMatchData.match) {
                     setMatch(updatedMatchData.match);
@@ -102,7 +145,7 @@ const MediationChat = () => {
         }
     };
 
-    // FUNÇÃO: Cancelar partida
+    // Função para cancelar partida
     const handleCancelMatch = async () => {
         if (!match || isCanceling) return;
         
@@ -115,7 +158,6 @@ const MediationChat = () => {
             if (result.success) {
                 alert(result.message);
                 
-                // Redirecionar baseado no tipo de usuário
                 if (result.userType === 'mediator') {
                     navigate('/mediacao');
                 } else if (result.gameSlug) {
@@ -205,13 +247,12 @@ const MediationChat = () => {
                 <ParticipantHeader player={match.player2} />
             </div>
 
-            {/* ÁREA DE CONFIRMAÇÃO COMPACTA - Chat liberado para discussão das regras */}
+            {/* Área de Confirmação Compacta */}
             {match.status === 'PENDING_CONFIRMATION' && (
                 <div className="bg-yellow-900/30 border-b border-yellow-600 p-2 text-center">
                     <h3 className="text-md font-bold text-yellow-400">⚠️ Confirmação Necessária</h3>
                     <p className="text-xs text-gray-300 mt-1">Discutam as regras no chat e confirmem quando estiverem de acordo</p>
                     
-                    {/* Status de confirmação individual */}
                     <div className="flex justify-center space-x-4 mt-2 text-sm">
                         <div className={`flex items-center space-x-1 ${match.player1Confirmed ? 'text-green-400' : 'text-gray-400'}`}>
                             <span>{match.player1Confirmed ? '✅' : '⏳'}</span>
@@ -227,7 +268,6 @@ const MediationChat = () => {
                         </div>
                     </div>
 
-                    {/* Botões de ação compactos */}
                     <div className="flex justify-center space-x-2 mt-3">
                         <button
                             onClick={handleConfirmMatch}
@@ -254,31 +294,131 @@ const MediationChat = () => {
                 </div>
             )}
 
-            {/* Formulário de Resultado (apenas para mediadores e quando a partida estiver em progresso) */}
+            {/* FORMULÁRIO DE RESULTADO COM ESTATÍSTICAS */}
             {showResultForm && match.status === 'IN_PROGRESS' && user?.isAdmin && match.mediatorId === user.id && (
-                <div className="bg-gray-800 p-4 border-b border-gray-700">
+                <div className="bg-gray-800 p-4 border-b border-gray-700 max-h-96 overflow-y-auto">
                     <h3 className="text-lg font-bold text-purple-400 mb-3">Finalizar Mediação</h3>
-                    <div className="flex items-center space-x-4">
+                    
+                    {/* Seleção do Resultado */}
+                    <div className="mb-4">
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Resultado da Partida *</label>
                         <select
                             value={matchResult}
                             onChange={(e) => setMatchResult(e.target.value)}
-                            className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white"
+                            className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white"
                         >
                             <option value="">Selecione o resultado</option>
                             <option value="player1_win">Vitória do {match.player1.profile.username}</option>
                             <option value="player2_win">Vitória do {match.player2.profile.username}</option>
                             <option value="draw">Empate</option>
+                            <option value="player1_wo">Vitória do {match.player1.profile.username} por W.O</option>
+                            <option value="player2_wo">Vitória do {match.player2.profile.username} por W.O</option>
                             <option value="cancelled">Cancelada</option>
                         </select>
+                    </div>
+
+                    {/* Estatísticas Opcionais */}
+                    <div className="mb-4">
+                        <h4 className="text-md font-semibold text-gray-300 mb-3">Estatísticas (Opcionais)</h4>
+                        <p className="text-xs text-gray-400 mb-3">
+                            Preencha apenas as estatísticas que foram informadas pelos jogadores. 
+                            Campos vazios não serão contabilizados nas médias.
+                        </p>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                            {/* Estatísticas do Jogador 1 */}
+                            <div>
+                                <h5 className="text-sm font-medium text-purple-400 mb-2">{match.player1.profile.username}</h5>
+                                <div className="space-y-2">
+                                    <div>
+                                        <label className="block text-xs text-gray-400">Kills</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={statistics.player1Kills}
+                                            onChange={(e) => handleStatisticChange('player1Kills', e.target.value)}
+                                            className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-sm"
+                                            placeholder="Ex: 15"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs text-gray-400">Assistências</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={statistics.player1Assists}
+                                            onChange={(e) => handleStatisticChange('player1Assists', e.target.value)}
+                                            className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-sm"
+                                            placeholder="Ex: 8"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs text-gray-400">Capas</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={statistics.player1Caps}
+                                            onChange={(e) => handleStatisticChange('player1Caps', e.target.value)}
+                                            className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-sm"
+                                            placeholder="Ex: 3"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Estatísticas do Jogador 2 */}
+                            <div>
+                                <h5 className="text-sm font-medium text-purple-400 mb-2">{match.player2.profile.username}</h5>
+                                <div className="space-y-2">
+                                    <div>
+                                        <label className="block text-xs text-gray-400">Kills</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={statistics.player2Kills}
+                                            onChange={(e) => handleStatisticChange('player2Kills', e.target.value)}
+                                            className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-sm"
+                                            placeholder="Ex: 12"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs text-gray-400">Assistências</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={statistics.player2Assists}
+                                            onChange={(e) => handleStatisticChange('player2Assists', e.target.value)}
+                                            className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-sm"
+                                            placeholder="Ex: 5"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs text-gray-400">Capas</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={statistics.player2Caps}
+                                            onChange={(e) => handleStatisticChange('player2Caps', e.target.value)}
+                                            className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-sm"
+                                            placeholder="Ex: 1"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Botões de Ação */}
+                    <div className="flex space-x-3">
                         <button
                             onClick={handleCompleteMediation}
-                            className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg font-medium"
+                            className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg font-medium text-sm"
                         >
-                            Finalizar
+                            Finalizar Mediação
                         </button>
                         <button
                             onClick={() => setShowResultForm(false)}
-                            className="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded-lg font-medium"
+                            className="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded-lg font-medium text-sm"
                         >
                             Cancelar
                         </button>
@@ -286,9 +426,8 @@ const MediationChat = () => {
                 </div>
             )}
 
-            {/* Área de Mensagens - SEMPRE DISPONÍVEL */}
+            {/* Área de Mensagens */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {/* Mensagem automática para orientar sobre a confirmação */}
                 {match.status === 'PENDING_CONFIRMATION' && messages.length === 0 && (
                     <div className="bg-blue-900/30 border border-blue-600 rounded-lg p-3 text-center">
                         <p className="text-blue-300 text-sm">
@@ -304,9 +443,8 @@ const MediationChat = () => {
                 <div ref={messagesEndRef} />
             </div>
 
-            {/* Área de Input - SEMPRE HABILITADA */}
+            {/* Área de Input */}
             <div className="bg-gray-800 p-4 border-t border-gray-700">
-                {/* Botão para mostrar formulário de resultado (apenas para mediadores) */}
                 {user?.isAdmin && match.mediatorId === user.id && match.status === 'IN_PROGRESS' && !showResultForm && (
                     <div className="mb-3">
                         <button

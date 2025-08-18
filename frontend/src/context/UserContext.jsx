@@ -315,32 +315,139 @@ export const UserProvider = ({ children }) => {
         }
     };
 
-    const completeMediation = async (matchId, result) => {
-        if (!user || !login || !user.isAdmin) {
-            return { success: false, message: "Você não tem permissão para finalizar mediações." };
-        }
+    // FUNÇÃO MODIFICADA: Finalizar mediação com estatísticas
+    const completeMediation = async (matchId, result, statistics = {}) => {
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/matchmaking/mediation/complete`,
-                { matchId, result, mediatorId: user.id },
+            const response = await axios.post(
+                `${import.meta.env.VITE_API_URL}/api/matchmaking/mediation/complete`,
+                { 
+                    matchId, 
+                    result,
+                    statistics // Novo parâmetro para estatísticas
+                },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
-            fetchUser();
-            setMediationStats(prev => ({
-                ...prev,
-                totalMediations: prev.totalMediations + 1,
-                successfulMediations: result !== 'cancelled' ? prev.successfulMediations + 1 : prev.successfulMediations,
-                totalEarnings: prev.totalEarnings + (res.data.reward || 0)
-            }));
-            setCurrentMatch(null);
-            return { success: true, message: res.data.message, reward: res.data.reward };
+            return response.data;
         } catch (error) {
-            console.error('Erro ao finalizar mediação:', error.response?.data || error.message);
-            return { success: false, message: error.response?.data?.message || 'Erro ao finalizar mediação.' };
+            console.error('Erro ao finalizar mediação:', error);
+            return { success: false, message: 'Erro ao finalizar mediação.' };
         }
     };
 
-    const getMatchDetails = async (matchId) => {
+    // NOVA FUNÇÃO: Buscar estatísticas do usuário logado
+    const getMyStatistics = async (gameSlug = null) => {
+        try {
+            const token = localStorage.getItem('token');
+            const url = gameSlug 
+                ? `${import.meta.env.VITE_API_URL}/api/matchmaking/statistics/me?gameSlug=${gameSlug}`
+                : `${import.meta.env.VITE_API_URL}/api/matchmaking/statistics/me`;
+            
+            const response = await axios.get(url, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            return response.data;
+        } catch (error) {
+            console.error('Erro ao buscar estatísticas:', error);
+            return { success: false, message: 'Erro ao buscar estatísticas.' };
+        }
+    };
+
+    // NOVA FUNÇÃO: Buscar estatísticas de um jogador específico
+    const getPlayerStatistics = async (userId, gameSlug = null) => {
+        try {
+            const token = localStorage.getItem('token');
+            const url = gameSlug 
+                ? `${import.meta.env.VITE_API_URL}/api/matchmaking/statistics/player/${userId}?gameSlug=${gameSlug}`
+                : `${import.meta.env.VITE_API_URL}/api/matchmaking/statistics/player/${userId}`;
+            
+            const response = await axios.get(url, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            return response.data;
+        } catch (error) {
+            console.error('Erro ao buscar estatísticas do jogador:', error);
+            return { success: false, message: 'Erro ao buscar estatísticas do jogador.' };
+        }
+    };
+
+    // NOVA FUNÇÃO: Buscar histórico de partidas do usuário logado
+    const getMyMatchHistory = async (gameSlug = null, limit = 20, offset = 0) => {
+        try {
+            const token = localStorage.getItem('token');
+            const params = new URLSearchParams();
+            if (gameSlug) params.append('gameSlug', gameSlug);
+            params.append('limit', limit.toString());
+            params.append('offset', offset.toString());
+            
+            const response = await axios.get(
+                `${import.meta.env.VITE_API_URL}/api/matchmaking/matches/history/me?${params}`,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            return response.data;
+        } catch (error) {
+            console.error('Erro ao buscar histórico de partidas:', error);
+            return { success: false, message: 'Erro ao buscar histórico de partidas.' };
+        }
+    };
+
+    // NOVA FUNÇÃO: Buscar histórico de partidas de um jogador específico
+    const getPlayerMatchHistory = async (userId, gameSlug = null, limit = 20, offset = 0) => {
+        try {
+            const token = localStorage.getItem('token');
+            const params = new URLSearchParams();
+            if (gameSlug) params.append('gameSlug', gameSlug);
+            params.append('limit', limit.toString());
+            params.append('offset', offset.toString());
+            
+            const response = await axios.get(
+                `${import.meta.env.VITE_API_URL}/api/matchmaking/matches/history/player/${userId}?${params}`,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            return response.data;
+        } catch (error) {
+            console.error('Erro ao buscar histórico do jogador:', error);
+            return { success: false, message: 'Erro ao buscar histórico do jogador.' };
+        }
+    };
+
+    // NOVA FUNÇÃO: Buscar ranking de jogadores
+    const getPlayersRanking = async (gameSlug, sortBy = 'winRate', limit = 50, offset = 0) => {
+        try {
+            const token = localStorage.getItem('token');
+            const params = new URLSearchParams();
+            params.append('gameSlug', gameSlug);
+            params.append('sortBy', sortBy);
+            params.append('limit', limit.toString());
+            params.append('offset', offset.toString());
+            
+            const response = await axios.get(
+                `${import.meta.env.VITE_API_URL}/api/matchmaking/ranking?${params}`,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            return response.data;
+        } catch (error) {
+            console.error('Erro ao buscar ranking:', error);
+            return { success: false, message: 'Erro ao buscar ranking.' };
+        }
+    };
+
+    // NOVA FUNÇÃO: Buscar estatísticas detalhadas de uma partida
+    const getMatchStatistics = async (matchId) => {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await axios.get(
+                `${import.meta.env.VITE_API_URL}/api/matchmaking/matches/${matchId}/statistics`,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            return response.data;
+        } catch (error) {
+            console.error('Erro ao buscar estatísticas da partida:', error);
+            return { success: false, message: 'Erro ao buscar estatísticas da partida.' };
+        }
+    };
+
+       const getMatchDetails = async (matchId) => {
         if (!login) return null;
         const token = localStorage.getItem('token');
         try {
@@ -372,6 +479,7 @@ export const UserProvider = ({ children }) => {
         setConversations([]);
     }
 }, [login]);
+
 
     const updateMediationStats = (newStats) => {
         setMediationStats(prev => ({
@@ -459,6 +567,12 @@ export const UserProvider = ({ children }) => {
             // NOVAS FUNÇÕES ADICIONADAS
             confirmMatch,
             cancelMatch,
+             getMyStatistics,
+            getPlayerStatistics,
+            getMyMatchHistory,
+            getPlayerMatchHistory,
+            getPlayersRanking,
+            getMatchStatistics,
         }}>
             {children}
         </UserContext.Provider>

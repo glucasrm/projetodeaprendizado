@@ -1,4 +1,4 @@
-// src/controllers/matchmaking-controller.js (VERSÃO MODIFICADA COM CONFIRMAÇÃO)
+// src/controllers/matchmaking-controller.js (VERSÃO CORRIGIDA)
 
 class MatchmakingController {
   constructor(matchmakingService) {
@@ -7,7 +7,7 @@ class MatchmakingController {
 
   async joinBetQueue(request, reply) {
     const { betAmount, modality, platform, gameSlug } = request.body;
-    const userId = request.user.sub; // ID do usuário autenticado
+    const userId = request.user.sub;
 
     if (!userId) {
       return reply.status(401).send({ message: "Usuário não autenticado." });
@@ -24,7 +24,7 @@ class MatchmakingController {
 
 async joinMediationQueue(request, reply) {
   const { modalities, platforms } = request.body;
-  const mediatorId = request.user.sub; // ID do usuário autenticado
+  const mediatorId = request.user.sub;
 
   if (!mediatorId) {
     return reply.status(401).send({ message: "Mediador não autenticado." });
@@ -41,7 +41,7 @@ async joinMediationQueue(request, reply) {
 
   async leaveQueue(request, reply) {
     const { role } = request.body;
-    const userId = request.user.sub; // ID do usuário autenticado
+    const userId = request.user.sub;
 
     if (!userId) {
       return reply.status(401).send({ message: "Usuário não autenticado." });
@@ -56,29 +56,64 @@ async joinMediationQueue(request, reply) {
     }
   }
 
+  // MÉTODO CORRIGIDO: Finalizar mediação com tratamento de erro melhorado
   async completeMediation(request, reply) {
-    const { matchId, result } = request.body;
-    const mediatorId = request.user.sub; // ID do mediador autenticado
+    const { matchId, result, statistics } = request.body;
+    const mediatorId = request.user.sub;
 
     if (!mediatorId) {
       return reply.status(401).send({ message: "Mediador não autenticado." });
     }
 
-    // TODO: Adicionar verificação se o usuário é o mediador da partida
+    if (!matchId || !result) {
+      return reply.status(400).send({ message: "matchId e result são obrigatórios." });
+    }
+
+    // Validar resultado
+    const validResults = ['player1_win', 'player2_win', 'draw', 'player1_wo', 'player2_wo', 'cancelled'];
+    if (!validResults.includes(result)) {
+      return reply.status(400).send({ message: "Resultado inválido." });
+    }
+
+    // Validar e limpar estatísticas (se fornecidas)
+    let cleanedStatistics = {};
+    if (statistics && typeof statistics === 'object') {
+      const validStatFields = ['player1Kills', 'player1Assists', 'player1Caps', 'player2Kills', 'player2Assists', 'player2Caps'];
+      
+      for (const field of validStatFields) {
+        if (statistics[field] !== undefined && statistics[field] !== null && statistics[field] !== '') {
+          const value = parseInt(statistics[field]);
+          if (!isNaN(value) && value >= 0) {
+            cleanedStatistics[field] = value;
+          }
+        }
+      }
+    }
 
     try {
-      const completionResult = await this.matchmakingService.completeMediation(mediatorId, matchId, result);
+      console.log(`Attempting to complete mediation for match ${matchId} with result ${result}`);
+      console.log('Statistics:', cleanedStatistics);
+      
+      const completionResult = await this.matchmakingService.completeMediation(mediatorId, matchId, result, cleanedStatistics);
+      
+      console.log('Mediation completion result:', completionResult);
+      
       return reply.send(completionResult);
     } catch (error) {
+      console.error('Error in completeMediation controller:', error);
+      console.error('Error stack:', error.stack);
       request.log.error(error);
-      return reply.status(500).send({ message: "Erro ao finalizar mediação.", error: error.message });
+      return reply.status(500).send({ 
+        message: "Erro ao finalizar mediação.", 
+        error: error.message,
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      });
     }
   }
 
-  // NOVO MÉTODO: Confirmar participação na partida
   async confirmMatch(request, reply) {
     const { matchId } = request.params;
-    const userId = request.user.sub; // ID do usuário autenticado
+    const userId = request.user.sub;
 
     if (!userId) {
       return reply.status(401).send({ message: "Usuário não autenticado." });
@@ -93,10 +128,9 @@ async joinMediationQueue(request, reply) {
     }
   }
 
-  // NOVO MÉTODO: Cancelar partida
   async cancelMatch(request, reply) {
     const { matchId } = request.params;
-    const userId = request.user.sub; // ID do usuário autenticado
+    const userId = request.user.sub;
 
     if (!userId) {
       return reply.status(401).send({ message: "Usuário não autenticado." });
@@ -140,7 +174,7 @@ async joinMediationQueue(request, reply) {
 
   async sendMessage(request, reply) {
     const { chatRoomId, content, messageType } = request.body;
-    const senderId = request.user.sub; // ID do remetente autenticado
+    const senderId = request.user.sub;
 
     if (!senderId) {
       return reply.status(401).send({ message: "Usuário não autenticado." });
