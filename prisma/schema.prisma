@@ -197,7 +197,7 @@ model Match {
   mediatorConfirmed Boolean  @default(false)
 
   // novo relaciomento com estatísticas
-  // statistics            MatchStatistics?
+  statistics            MatchStatistics?
 
   @@map("matches")
 }

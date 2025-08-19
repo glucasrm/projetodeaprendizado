@@ -13,12 +13,108 @@ async function matchmakingRoutes(fastify, options) {
 
   // ========== ROTAS EXISTENTES ==========
 
-  // Rotas de apostas (jogadores)
+// Rotas de apostas (jogadores) - MODIFICADA com limitação
   fastify.post(
     "/bets/join-queue",
-    { onRequest: [fastify.authenticate] },
+    { 
+      onRequest: [fastify.authenticate],
+      schema: {
+        description: 'Entrar na fila de apostas (com limitação para jogadores)',
+        tags: ['Betting'],
+        body: {
+          type: 'object',
+          required: ['betAmount', 'modality', 'platform', 'gameSlug'],
+          properties: {
+            betAmount: { type: 'number', minimum: 0.01, description: 'Valor da aposta' },
+            modality: { type: 'string', description: 'Modalidade do jogo' },
+            platform: { type: 'string', description: 'Plataforma do jogo' },
+            gameSlug: { type: 'string', description: 'Identificador do jogo' }
+          }
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              success: { type: 'boolean' },
+              message: { type: 'string' },
+              betId: { type: 'string' },
+              userType: { type: 'string', enum: ['admin', 'player'] }
+            }
+          },
+          409: {
+            type: 'object',
+            properties: {
+              success: { type: 'boolean' },
+              message: { type: 'string' },
+              details: {
+                type: 'object',
+                properties: {
+                  currentBets: { type: 'integer' },
+                  maxAllowed: { type: 'integer' },
+                  activeBets: { type: 'array' }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     (request, reply) => matchmakingController.joinBetQueue(request, reply)
   );
+
+  // NOVA ROTA: Verificar status de apostas do usuário
+  fastify.get(
+    "/bets/status",
+    { 
+      onRequest: [fastify.authenticate],
+      schema: {
+        description: 'Obter status de apostas do usuário logado',
+        tags: ['Betting'],
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              success: { type: 'boolean' },
+              userType: { type: 'string', enum: ['admin', 'player'] },
+              maxAllowed: { type: ['integer', 'string'] },
+              currentActive: { type: 'integer' },
+              canJoinNewBet: { type: 'boolean' },
+              activeBets: { type: 'array' },
+              activeMatches: { type: 'array' }
+            }
+          }
+        }
+      }
+    },
+    (request, reply) => matchmakingController.getUserBetStatus(request, reply)
+  );
+
+  // NOVA ROTA: Verificar se pode entrar em nova aposta
+  fastify.get(
+    "/bets/can-join",
+    { 
+      onRequest: [fastify.authenticate],
+      schema: {
+        description: 'Verificar se o usuário pode entrar em uma nova aposta',
+        tags: ['Betting'],
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              success: { type: 'boolean' },
+              canJoin: { type: 'boolean' },
+              reason: { type: 'string' },
+              userType: { type: 'string', enum: ['admin', 'player'] },
+              currentActive: { type: 'integer' },
+              maxAllowed: { type: ['integer', 'string'] }
+            }
+          }
+        }
+      }
+    },
+    (request, reply) => matchmakingController.canJoinNewBet(request, reply)
+  );
+
 
   // Rotas de mediação (mediadores)
   fastify.post(

@@ -1,10 +1,11 @@
-// src/controllers/matchmaking-controller.js (VERSÃO CORRIGIDA)
+// src/controllers/matchmaking-controller.js (VERSÃO COM LIMITAÇÃO DE APOSTAS)
 
 class MatchmakingController {
   constructor(matchmakingService) {
     this.matchmakingService = matchmakingService;
   }
 
+  // MÉTODO MODIFICADO: Entrar na fila de apostas com verificação de limite
   async joinBetQueue(request, reply) {
     const { betAmount, modality, platform, gameSlug } = request.body;
     const userId = request.user.sub;
@@ -13,14 +14,99 @@ class MatchmakingController {
       return reply.status(401).send({ message: "Usuário não autenticado." });
     }
 
+    // Validar dados obrigatórios
+    if (!betAmount || !modality || !platform || !gameSlug) {
+      return reply.status(400).send({ 
+        message: "Dados obrigatórios faltando: betAmount, modality, platform, gameSlug." 
+      });
+    }
+
+    // Validar valor da aposta
+    const parsedBetAmount = parseFloat(betAmount);
+    if (isNaN(parsedBetAmount) || parsedBetAmount <= 0) {
+      return reply.status(400).send({ 
+        message: "Valor da aposta deve ser um número positivo." 
+      });
+    }
+
     try {
-      const result = await this.matchmakingService.joinBetQueue(userId, betAmount, modality, platform, gameSlug);
+      console.log(`User ${userId} attempting to join bet queue for ${parsedBetAmount}`);
+      
+      const result = await this.matchmakingService.joinBetQueue(userId, parsedBetAmount, modality, platform, gameSlug);
+      
+      // Se o usuário foi bloqueado por limite de apostas, retornar status 409 (Conflict)
+      if (!result.success && result.message.includes('máximo de apostas')) {
+        return reply.status(409).send(result);
+      }
+      
       return reply.send(result);
     } catch (error) {
+      console.error('Erro no controller joinBetQueue:', error);
       request.log.error(error);
-      return reply.status(500).send({ message: "Erro ao entrar na fila de apostas.", error: error.message });
+      return reply.status(500).send({ 
+        message: "Erro ao entrar na fila de apostas.", 
+        error: error.message 
+      });
     }
   }
+
+  // NOVO MÉTODO: Obter status de apostas do usuário
+  async getUserBetStatus(request, reply) {
+    const userId = request.user.sub;
+
+    if (!userId) {
+      return reply.status(401).send({ message: "Usuário não autenticado." });
+    }
+
+    try {
+      const result = await this.matchmakingService.getUserBetStatus(userId);
+      return reply.send(result);
+    } catch (error) {
+      console.error('Erro ao obter status de apostas:', error);
+      request.log.error(error);
+      return reply.status(500).send({ 
+        message: "Erro ao obter status de apostas.", 
+        error: error.message 
+      });
+    }
+  }
+
+  // NOVO MÉTODO: Verificar se usuário pode entrar em nova aposta
+  async canJoinNewBet(request, reply) {
+    const userId = request.user.sub;
+
+    if (!userId) {
+      return reply.status(401).send({ message: "Usuário não autenticado." });
+    }
+
+    try {
+      const result = await this.matchmakingService.getUserBetStatus(userId);
+      
+      if (result.success) {
+        return reply.send({
+          success: true,
+          canJoin: result.canJoinNewBet,
+          reason: result.canJoinNewBet 
+            ? 'Usuário pode entrar em nova aposta' 
+            : `Usuário já possui ${result.currentActive} aposta(s) ativa(s). Limite: ${result.maxAllowed}`,
+          userType: result.userType,
+          currentActive: result.currentActive,
+          maxAllowed: result.maxAllowed
+        });
+      } else {
+        return reply.status(500).send(result);
+      }
+    } catch (error) {
+      console.error('Erro ao verificar se pode entrar em nova aposta:', error);
+      request.log.error(error);
+      return reply.status(500).send({ 
+        message: "Erro ao verificar permissão para nova aposta.", 
+        error: error.message 
+      });
+    }
+  }
+
+  // ========== MÉTODOS EXISTENTES (INALTERADOS) ==========
 
 async joinMediationQueue(request, reply) {
   const { modalities, platforms } = request.body;
@@ -56,7 +142,6 @@ async joinMediationQueue(request, reply) {
     }
   }
 
-  // MÉTODO CORRIGIDO: Finalizar mediação com tratamento de erro melhorado
   async completeMediation(request, reply) {
     const { matchId, result, statistics } = request.body;
     const mediatorId = request.user.sub;
@@ -69,13 +154,11 @@ async joinMediationQueue(request, reply) {
       return reply.status(400).send({ message: "matchId e result são obrigatórios." });
     }
 
-    // Validar resultado
     const validResults = ['player1_win', 'player2_win', 'draw', 'player1_wo', 'player2_wo', 'cancelled'];
     if (!validResults.includes(result)) {
       return reply.status(400).send({ message: "Resultado inválido." });
     }
 
-    // Validar e limpar estatísticas (se fornecidas)
     let cleanedStatistics = {};
     if (statistics && typeof statistics === 'object') {
       const validStatFields = ['player1Kills', 'player1Assists', 'player1Caps', 'player2Kills', 'player2Assists', 'player2Caps'];

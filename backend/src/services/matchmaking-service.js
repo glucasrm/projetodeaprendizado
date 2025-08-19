@@ -1,9 +1,394 @@
-// src/services/matchmaking-service.js (VERSÃO MODIFICADA COM CONFIRMAÇÃO)
+// src/services/matchmaking-service.js (VERSÃO COM LIMITAÇÃO DE APOSTAS)
 
 class MatchmakingService {
   constructor(prisma, notificationService) {
     this.prisma = prisma;
     this.notificationService = notificationService;
+  }
+
+  // MÉTODO MODIFICADO: Entrar na fila de apostas com verificação de limite
+  async joinBetQueue(userId, betAmount, modality, platform, gameSlug) {
+    console.log(`User ${userId} joining bet queue for ${betAmount} in ${modality} on ${platform} for ${gameSlug}`);
+    
+    try {
+      // 1. Buscar informações do usuário para verificar se é admin
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, isAdmin: true }
+      });
+
+      if (!user) {
+        return { success: false, message: 'Usuário não encontrado.' };
+      }
+
+      // 2. Verificar apostas ativas do usuário
+      const activeUserBets = await this.checkActiveUserBets(userId);
+      
+      // 3. Aplicar limitação baseada no tipo de usuário
+      if (!user.isAdmin) {
+        // JOGADORES: Máximo 1 aposta simultânea
+        if (activeUserBets.totalActive > 0) {
+          return { 
+            success: false, 
+            message: 'Você está no máximo de apostas no momento. Finalize sua aposta atual antes de entrar em uma nova fila.',
+            details: {
+              currentBets: activeUserBets.totalActive,
+              maxAllowed: 1,
+              activeBets: activeUserBets.bets
+            }
+          };
+        }
+      } else {
+        // ADMINISTRADORES: Sem limite (podem ter apostas ilimitadas)
+        console.log(`Admin ${userId} joining queue. Current active bets: ${activeUserBets.totalActive}`);
+      }
+
+      // 4. Se passou na verificação, criar a aposta
+      const bet = await this.prisma.directBet.create({
+        data: {
+          playerId: userId,
+          betAmount: parseFloat(betAmount),
+          modality,
+          platform,
+          gameSlug,
+          status: 'WAITING_OPPONENT',
+        },
+      });
+
+      console.log(`User ${userId} successfully joined bet queue. Bet ID: ${bet.id}`);
+      
+      return { 
+        success: true, 
+        message: 'Entrou na fila de apostas com sucesso!', 
+        betId: bet.id,
+        userType: user.isAdmin ? 'admin' : 'player'
+      };
+
+    } catch (error) {
+      console.error('Erro ao entrar na fila de apostas:', error);
+      return { 
+        success: false, 
+        message: 'Erro interno do servidor ao entrar na fila.' 
+      };
+    }
+  }
+
+  // NOVO MÉTODO: Verificar apostas ativas do usuário
+  async checkActiveUserBets(userId) {
+    try {
+      // Buscar apostas em diferentes estados que são consideradas "ativas"
+      const activeBets = await this.prisma.directBet.findMany({
+        where: {
+          playerId: userId,
+          status: {
+            in: ['WAITING_OPPONENT', 'MATCHED'] // Estados que impedem nova aposta
+          }
+        },
+        include: {
+          match: {
+            select: {
+              id: true,
+              status: true,
+              gameSlug: true,
+              betAmount: true,
+              createdAt: true
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      // Também verificar se o usuário está em partidas ativas
+      const activeMatches = await this.prisma.match.findMany({
+        where: {
+          OR: [
+            { player1Id: userId },
+            { player2Id: userId }
+          ],
+          status: {
+            in: ['PENDING_CONFIRMATION', 'IN_PROGRESS'] // Estados que impedem nova aposta
+          }
+        },
+        select: {
+          id: true,
+          status: true,
+          gameSlug: true,
+          betAmount: true,
+          createdAt: true
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      // Combinar informações
+      const totalActiveBets = activeBets.length;
+      const totalActiveMatches = activeMatches.length;
+      const totalActive = totalActiveBets + totalActiveMatches;
+
+      return {
+        totalActive,
+        totalActiveBets,
+        totalActiveMatches,
+        bets: activeBets.map(bet => ({
+          id: bet.id,
+          status: bet.status,
+          gameSlug: bet.gameSlug,
+          betAmount: bet.betAmount,
+          createdAt: bet.createdAt,
+          matchId: bet.match?.id || null,
+          matchStatus: bet.match?.status || null
+        })),
+        matches: activeMatches.map(match => ({
+          id: match.id,
+          status: match.status,
+          gameSlug: match.gameSlug,
+          betAmount: match.betAmount,
+          createdAt: match.createdAt
+        }))
+      };
+
+    } catch (error) {
+      console.error('Erro ao verificar apostas ativas:', error);
+      return {
+        totalActive: 0,
+        totalActiveBets: 0,
+        totalActiveMatches: 0,
+        bets: [],
+        matches: []
+      };
+    }
+  }
+
+  // NOVO MÉTODO: Obter status de apostas do usuário (para frontend)
+  async getUserBetStatus(userId) {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, isAdmin: true }
+      });
+
+      if (!user) {
+        return { success: false, message: 'Usuário não encontrado.' };
+      }
+
+      const activeUserBets = await this.checkActiveUserBets(userId);
+      
+      const maxAllowed = user.isAdmin ? 'unlimited' : 1;
+      const canJoinNewBet = user.isAdmin || activeUserBets.totalActive === 0;
+
+      return {
+        success: true,
+        userType: user.isAdmin ? 'admin' : 'player',
+        maxAllowed,
+        currentActive: activeUserBets.totalActive,
+        canJoinNewBet,
+        activeBets: activeUserBets.bets,
+        activeMatches: activeUserBets.matches
+      };
+
+    } catch (error) {
+      console.error('Erro ao obter status de apostas:', error);
+      return { success: false, message: 'Erro interno do servidor.' };
+    }
+  }
+
+  // ========== MÉTODOS EXISTENTES (INALTERADOS) ==========
+
+  // MÉTODO CORRIGIDO: Finalizar mediação (versão simplificada que funciona)
+  async completeMediation(mediatorId, matchId, result, statistics = {}) {
+    console.log(`Mediator ${mediatorId} completing match ${matchId} with result ${result}`);
+    
+    try {
+      const match = await this.prisma.match.findUnique({
+        where: { id: matchId },
+        include: {
+          player1: { include: { profile: true } },
+          player2: { include: { profile: true } },
+        },
+      });
+
+      if (!match) {
+        return { success: false, message: 'Partida não encontrada.' };
+      }
+
+      if (match.status !== 'IN_PROGRESS') {
+        return { success: false, message: 'Esta partida não pode ser finalizada.' };
+      }
+
+      if (match.mediatorId !== mediatorId) {
+        return { success: false, message: 'Você não é o mediador desta partida.' };
+      }
+
+      const self = this;
+
+      await this.prisma.$transaction(async (tx) => {
+        // 1. Atualizar status da partida
+        await tx.match.update({
+          where: { id: matchId },
+          data: { status: 'COMPLETED', result: result },
+        });
+
+        // 2. Tentar criar registro de estatísticas da partida (se a tabela existir)
+        try {
+          await tx.matchStatistics.create({
+            data: {
+              matchId: matchId,
+              result: result,
+              player1Kills: statistics.player1Kills || null,
+              player1Assists: statistics.player1Assists || null,
+              player1Caps: statistics.player1Caps || null,
+              player2Kills: statistics.player2Kills || null,
+              player2Assists: statistics.player2Assists || null,
+              player2Caps: statistics.player2Caps || null,
+              completedBy: mediatorId,
+            },
+          });
+          console.log('Estatísticas da partida salvas com sucesso');
+        } catch (statsError) {
+          console.log('Tabela de estatísticas não existe ainda, pulando...', statsError.message);
+        }
+
+        // 3. Tentar atualizar estatísticas dos jogadores (se a tabela existir)
+        try {
+          await self.updatePlayerStatisticsFixed(tx, match.player1Id, match.gameSlug, result, 'player1', statistics);
+          await self.updatePlayerStatisticsFixed(tx, match.player2Id, match.gameSlug, result, 'player2', statistics);
+          console.log('Estatísticas dos jogadores atualizadas com sucesso');
+        } catch (playerStatsError) {
+          console.log('Tabela de estatísticas de jogadores não existe ainda, pulando...', playerStatsError.message);
+        }
+
+        // 4. Liberar mediador
+        await tx.mediationRequest.updateMany({
+          where: { mediatorId: mediatorId },
+          data: { status: 'AVAILABLE' },
+        });
+
+        // 5. IMPORTANTE: Atualizar status das apostas para COMPLETED
+        await tx.directBet.updateMany({
+          where: { matchId: matchId },
+          data: { status: 'COMPLETED' },
+        });
+
+        // 6. Enviar notificações
+        const player1Name = match.player1.profile?.username || match.player1.nome;
+        const player2Name = match.player2.profile?.username || match.player2.nome;
+
+        let resultMessage = '';
+        switch (result) {
+          case 'player1_win':
+            resultMessage = `Vitória de ${player1Name}!`;
+            break;
+          case 'player2_win':
+            resultMessage = `Vitória de ${player2Name}!`;
+            break;
+          case 'draw':
+            resultMessage = 'Empate!';
+            break;
+          case 'player1_wo':
+            resultMessage = `Vitória de ${player1Name} por W.O`;
+            break;
+          case 'player2_wo':
+            resultMessage = `Vitória de ${player2Name} por W.O`;
+            break;
+          case 'cancelled':
+            resultMessage = 'Partida cancelada';
+            break;
+          default:
+            resultMessage = 'Partida finalizada';
+        }
+
+        await self.notificationService.createNotification(
+          match.player1Id, 'match_completed', `Sua partida foi finalizada: ${resultMessage}`,
+          { matchId: matchId, result: result }, `/perfil/${match.player1Id}`
+        );
+
+        await self.notificationService.createNotification(
+          match.player2Id, 'match_completed', `Sua partida foi finalizada: ${resultMessage}`,
+          { matchId: matchId, result: result }, `/perfil/${match.player2Id}`
+        );
+      });
+
+      return { success: true, message: 'Mediação finalizada com sucesso!' };
+
+    } catch (error) {
+      console.error('Erro ao finalizar mediação:', error);
+      console.error('Stack trace:', error.stack);
+      return { success: false, message: 'Erro interno do servidor.' };
+    }
+  }
+
+  // MÉTODO CORRIGIDO: Atualizar estatísticas do jogador (com sintaxe correta do Prisma)
+  async updatePlayerStatisticsFixed(tx, playerId, gameSlug, result, playerPosition, statistics) {
+    try {
+      const playerStats = await tx.playerStatistics.upsert({
+        where: {
+          userId_gameSlug: {
+            userId: playerId,
+            gameSlug: gameSlug,
+          },
+        },
+        update: {},
+        create: {
+          userId: playerId,
+          gameSlug: gameSlug,
+        },
+      });
+
+      let isWin = false;
+      let isLoss = false;
+      let isWinWO = false;
+      let isLossWO = false;
+
+      if (result === 'player1_win' && playerPosition === 'player1') isWin = true;
+      if (result === 'player2_win' && playerPosition === 'player2') isWin = true;
+      if (result === 'player1_win' && playerPosition === 'player2') isLoss = true;
+      if (result === 'player2_win' && playerPosition === 'player1') isLoss = true;
+      if (result === 'player1_wo' && playerPosition === 'player1') isWinWO = true;
+      if (result === 'player2_wo' && playerPosition === 'player2') isWinWO = true;
+      if (result === 'player1_wo' && playerPosition === 'player2') isLossWO = true;
+      if (result === 'player2_wo' && playerPosition === 'player1') isLossWO = true;
+
+      const updateData = {
+        totalMatches: { increment: 1 },
+      };
+
+      if (isWin) updateData.wins = { increment: 1 };
+      if (isLoss) updateData.losses = { increment: 1 };
+      if (isWinWO) updateData.winsWO = { increment: 1 };
+      if (isLossWO) updateData.lossesWO = { increment: 1 };
+
+      const playerKills = statistics[`${playerPosition}Kills`];
+      const playerAssists = statistics[`${playerPosition}Assists`];
+      const playerCaps = statistics[`${playerPosition}Caps`];
+
+      if (playerKills !== undefined && playerKills !== null && !isNaN(playerKills)) {
+        updateData.kills = { increment: parseInt(playerKills) };
+        updateData.matchesWithKills = { increment: 1 };
+      }
+
+      if (playerAssists !== undefined && playerAssists !== null && !isNaN(playerAssists)) {
+        updateData.assists = { increment: parseInt(playerAssists) };
+        updateData.matchesWithAssists = { increment: 1 };
+      }
+
+      if (playerCaps !== undefined && playerCaps !== null && !isNaN(playerCaps)) {
+        updateData.caps = { increment: parseInt(playerCaps) };
+        updateData.matchesWithCaps = { increment: 1 };
+      }
+
+      await tx.playerStatistics.update({
+        where: {
+          userId_gameSlug: {
+            userId: playerId,
+            gameSlug: gameSlug,
+          },
+        },
+        data: updateData,
+      });
+
+    } catch (error) {
+      console.error('Erro ao atualizar estatísticas do jogador:', error);
+      throw error;
+    }
   }
 
   async findAndCreateMatches() {
@@ -55,7 +440,6 @@ class MatchmakingService {
 
           const { match } = await this.prisma.$transaction(async (tx) => {
             
-            // MODIFICAÇÃO: Criar partida com status PENDING_CONFIRMATION
             const newMatch = await tx.match.create({
               data: {
                 player1Id: p1.id,
@@ -65,8 +449,7 @@ class MatchmakingService {
                 modality: player1Bet.modality,
                 platform: player1Bet.platform,
                 gameSlug: player1Bet.gameSlug,
-                status: 'PENDING_CONFIRMATION', // MODIFICAÇÃO: Status inicial é PENDING_CONFIRMATION
-                // Campos de confirmação inicializados como false
+                status: 'PENDING_CONFIRMATION',
                 player1Confirmed: false,
                 player2Confirmed: false,
                 mediatorConfirmed: false,
@@ -99,7 +482,6 @@ class MatchmakingService {
             const player1Name = p1.profile?.username || p1.nome;
             const player2Name = p2.profile?.username || p2.nome;
 
-            // MODIFICAÇÃO: Notificações agora mencionam a necessidade de confirmação
             await self.notificationService.createNotification(
               p1.id, 'match_found_player', `Seu confronto 🏆 1v1 contra ${player2Name} foi encontrado! Confirme sua participação.`,
               { opponentId: p2.id, opponentName: player2Name, matchId: newMatch.id }, `/mediacao/chat/${newMatch.id}`
@@ -128,7 +510,6 @@ class MatchmakingService {
     }
   }
 
-  // NOVO MÉTODO: Confirmar participação na partida
   async confirmMatch(matchId, userId) {
     console.log(`User ${userId} confirming match ${matchId}`);
     
@@ -150,7 +531,6 @@ class MatchmakingService {
         return { success: false, message: 'Esta partida não está aguardando confirmação.' };
       }
 
-      // Verificar se o usuário é um participante da partida
       const isPlayer1 = match.player1Id === userId;
       const isPlayer2 = match.player2Id === userId;
       const isMediator = match.mediatorId === userId;
@@ -159,7 +539,6 @@ class MatchmakingService {
         return { success: false, message: 'Você não é um participante desta partida.' };
       }
 
-      // Determinar qual campo de confirmação atualizar
       let updateData = {};
       if (isPlayer1) {
         if (match.player1Confirmed) {
@@ -178,13 +557,11 @@ class MatchmakingService {
         updateData.mediatorConfirmed = true;
       }
 
-      // Atualizar a confirmação
       const updatedMatch = await this.prisma.match.update({
         where: { id: matchId },
         data: updateData,
       });
 
-      // Verificar se todos confirmaram
       const allConfirmed = (
         (isPlayer1 ? true : match.player1Confirmed) &&
         (isPlayer2 ? true : match.player2Confirmed) &&
@@ -192,13 +569,11 @@ class MatchmakingService {
       );
 
       if (allConfirmed) {
-        // Todos confirmaram, iniciar a partida
         await this.prisma.match.update({
           where: { id: matchId },
           data: { status: 'IN_PROGRESS' },
         });
 
-        // Enviar notificações de início da partida
         const player1Name = match.player1.profile?.username || match.player1.nome;
         const player2Name = match.player2.profile?.username || match.player2.nome;
 
@@ -228,7 +603,6 @@ class MatchmakingService {
     }
   }
 
-  // NOVO MÉTODO: Cancelar partida
   async cancelMatch(matchId, userId) {
     console.log(`User ${userId} canceling match ${matchId}`);
     
@@ -250,7 +624,6 @@ class MatchmakingService {
         return { success: false, message: 'Esta partida não pode ser cancelada.' };
       }
 
-      // Verificar se o usuário é um participante da partida
       const isPlayer1 = match.player1Id === userId;
       const isPlayer2 = match.player2Id === userId;
       const isMediator = match.mediatorId === userId;
@@ -262,25 +635,21 @@ class MatchmakingService {
       const self = this;
 
       await this.prisma.$transaction(async (tx) => {
-        // Cancelar a partida
         await tx.match.update({
           where: { id: matchId },
           data: { status: 'CANCELLED' },
         });
 
-        // Retornar as apostas para o status WAITING_OPPONENT
         await tx.directBet.updateMany({
           where: { matchId: matchId },
           data: { status: 'WAITING_OPPONENT', matchId: null },
         });
 
-        // Liberar o mediador
         await tx.mediationRequest.updateMany({
           where: { mediatorId: match.mediatorId },
           data: { status: 'AVAILABLE' },
         });
 
-        // Enviar notificações de cancelamento
         const canceledByName = isPlayer1 ? (match.player1.profile?.username || match.player1.nome) :
                               isPlayer2 ? (match.player2.profile?.username || match.player2.nome) :
                               (match.mediator.profile?.username || match.mediator.nome);
@@ -320,21 +689,6 @@ class MatchmakingService {
     }
   }
 
-  async joinBetQueue(userId, betAmount, modality, platform, gameSlug) {
-    console.log(`User ${userId} joining bet queue for ${betAmount} in ${modality} on ${platform} for ${gameSlug}`);
-    const bet = await this.prisma.directBet.create({
-      data: {
-        playerId: userId,
-        betAmount: parseFloat(betAmount),
-        modality,
-        platform,
-        gameSlug,
-        status: 'WAITING_OPPONENT',
-      },
-    });
-    return { success: true, message: 'Entrou na fila de apostas', betId: bet.id };
-  }
-
   async joinMediationQueue(mediatorId, modalities, platforms) {
     console.log(`Mediator ${mediatorId} joining mediation queue for modalities: ${modalities}, platforms: ${platforms}`);
     const mediationRequest = await this.prisma.mediationRequest.upsert({
@@ -360,346 +714,15 @@ class MatchmakingService {
     }
     return { success: true, message: 'Saiu da fila' };
   }
- async completeMediation(mediatorId, matchId, result, statistics = {}) {
-    console.log(`Mediator ${mediatorId} completing match ${matchId} with result ${result}`);
-    
-    try {
-      const match = await this.prisma.match.findUnique({
-        where: { id: matchId },
-        include: {
-          player1: { include: { profile: true } },
-          player2: { include: { profile: true } },
-        },
-      });
-
-      if (!match) {
-        return { success: false, message: 'Partida não encontrada.' };
-      }
-
-      if (match.status !== 'IN_PROGRESS') {
-        return { success: false, message: 'Esta partida não pode ser finalizada.' };
-      }
-
-      if (match.mediatorId !== mediatorId) {
-        return { success: false, message: 'Você não é o mediador desta partida.' };
-      }
-
-      const self = this;
-
-      await this.prisma.$transaction(async (tx) => {
-        // 1. Atualizar status da partida
-        await tx.match.update({
-          where: { id: matchId },
-          data: { status: 'COMPLETED', result: result },
-        });
-
-        // 2. Tentar criar registro de estatísticas da partida (se a tabela existir)
-        try {
-          await tx.matchStatistics.create({
-            data: {
-              matchId: matchId,
-              result: result,
-              player1Kills: statistics.player1Kills || null,
-              player1Assists: statistics.player1Assists || null,
-              player1Caps: statistics.player1Caps || null,
-              player2Kills: statistics.player2Kills || null,
-              player2Assists: statistics.player2Assists || null,
-              player2Caps: statistics.player2Caps || null,
-              completedBy: mediatorId,
-            },
-          });
-          console.log('Estatísticas da partida salvas com sucesso');
-        } catch (statsError) {
-          console.log('Tabela de estatísticas não existe ainda, pulando...', statsError.message);
-          // Não falha a transação se a tabela não existir
-        }
-
-        // 3. Tentar atualizar estatísticas dos jogadores (se a tabela existir)
-        try {
-          await self.updatePlayerStatisticsFixed(tx, match.player1Id, match.gameSlug, result, 'player1', statistics);
-          await self.updatePlayerStatisticsFixed(tx, match.player2Id, match.gameSlug, result, 'player2', statistics);
-          console.log('Estatísticas dos jogadores atualizadas com sucesso');
-        } catch (playerStatsError) {
-          console.log('Tabela de estatísticas de jogadores não existe ainda, pulando...', playerStatsError.message);
-          // Não falha a transação se a tabela não existir
-        }
-
-        // 4. Liberar mediador
-        await tx.mediationRequest.updateMany({
-          where: { mediatorId: mediatorId },
-          data: { status: 'AVAILABLE' },
-        });
-
-        // 5. REMOVIDO: Processamento de pagamentos (pode estar causando erro)
-        // Comentado até verificarmos se o campo balance existe no modelo User
-        /*
-        if (result === 'player1_win') {
-          await self.processMatchPayment(tx, match.player1Id, match.player2Id, match.betAmount);
-        } else if (result === 'player2_win') {
-          await self.processMatchPayment(tx, match.player2Id, match.player1Id, match.betAmount);
-        }
-        */
-
-        // 6. Enviar notificações
-        const player1Name = match.player1.profile?.username || match.player1.nome;
-        const player2Name = match.player2.profile?.username || match.player2.nome;
-
-        let resultMessage = '';
-        switch (result) {
-          case 'player1_win':
-            resultMessage = `Vitória de ${player1Name}!`;
-            break;
-          case 'player2_win':
-            resultMessage = `Vitória de ${player2Name}!`;
-            break;
-          case 'draw':
-            resultMessage = 'Empate!';
-            break;
-          case 'player1_wo':
-            resultMessage = `Vitória de ${player1Name} por W.O`;
-            break;
-          case 'player2_wo':
-            resultMessage = `Vitória de ${player2Name} por W.O`;
-            break;
-          case 'cancelled':
-            resultMessage = 'Partida cancelada';
-            break;
-          default:
-            resultMessage = 'Partida finalizada';
-        }
-
-        await self.notificationService.createNotification(
-          match.player1Id, 'match_completed', `Sua partida foi finalizada: ${resultMessage}`,
-          { matchId: matchId, result: result }, `/perfil/${match.player1Id}`
-        );
-
-        await self.notificationService.createNotification(
-          match.player2Id, 'match_completed', `Sua partida foi finalizada: ${resultMessage}`,
-          { matchId: matchId, result: result }, `/perfil/${match.player2Id}`
-        );
-      });
-
-      return { success: true, message: 'Mediação finalizada com sucesso!' };
-
-    } catch (error) {
-      console.error('Erro ao finalizar mediação:', error);
-      console.error('Stack trace:', error.stack);
-      return { success: false, message: 'Erro interno do servidor.' };
-    }
-  }
-  async updatePlayerStatisticsFixed(tx, playerId, gameSlug, result, playerPosition, statistics) {
-    try {
-      // Buscar ou criar estatísticas do jogador (SINTAXE CORRIGIDA)
-      const playerStats = await tx.playerStatistics.upsert({
-        where: {
-          userId_gameSlug: {  // Chave composta correta
-            userId: playerId,
-            gameSlug: gameSlug,
-          },
-        },
-        update: {},
-        create: {
-          userId: playerId,
-          gameSlug: gameSlug,
-        },
-      });
-
-      // Determinar se foi vitória, derrota, W.O, etc.
-      let isWin = false;
-      let isLoss = false;
-      let isWinWO = false;
-      let isLossWO = false;
-
-      if (result === 'player1_win' && playerPosition === 'player1') isWin = true;
-      if (result === 'player2_win' && playerPosition === 'player2') isWin = true;
-      if (result === 'player1_win' && playerPosition === 'player2') isLoss = true;
-      if (result === 'player2_win' && playerPosition === 'player1') isLoss = true;
-      if (result === 'player1_wo' && playerPosition === 'player1') isWinWO = true;
-      if (result === 'player2_wo' && playerPosition === 'player2') isWinWO = true;
-      if (result === 'player1_wo' && playerPosition === 'player2') isLossWO = true;
-      if (result === 'player2_wo' && playerPosition === 'player1') isLossWO = true;
-
-      // Preparar dados de atualização
-      const updateData = {
-        totalMatches: { increment: 1 },
-      };
-
-      if (isWin) updateData.wins = { increment: 1 };
-      if (isLoss) updateData.losses = { increment: 1 };
-      if (isWinWO) updateData.winsWO = { increment: 1 };
-      if (isLossWO) updateData.lossesWO = { increment: 1 };
-
-      // Atualizar estatísticas opcionais apenas se foram fornecidas
-      const playerKills = statistics[`${playerPosition}Kills`];
-      const playerAssists = statistics[`${playerPosition}Assists`];
-      const playerCaps = statistics[`${playerPosition}Caps`];
-
-      if (playerKills !== undefined && playerKills !== null && !isNaN(playerKills)) {
-        updateData.kills = { increment: parseInt(playerKills) };
-        updateData.matchesWithKills = { increment: 1 };
-      }
-
-      if (playerAssists !== undefined && playerAssists !== null && !isNaN(playerAssists)) {
-        updateData.assists = { increment: parseInt(playerAssists) };
-        updateData.matchesWithAssists = { increment: 1 };
-      }
-
-      if (playerCaps !== undefined && playerCaps !== null && !isNaN(playerCaps)) {
-        updateData.caps = { increment: parseInt(playerCaps) };
-        updateData.matchesWithCaps = { increment: 1 };
-      }
-
-      // Aplicar atualizações
-      await tx.playerStatistics.update({
-        where: {
-          userId_gameSlug: {
-            userId: playerId,
-            gameSlug: gameSlug,
-          },
-        },
-        data: updateData,
-      });
-
-    } catch (error) {
-      console.error('Erro ao atualizar estatísticas do jogador:', error);
-      throw error; // Re-throw para que a transação falhe se necessário
-    }
-  }
-
-  // NOVO MÉTODO: Buscar estatísticas do jogador
-  async getPlayerStatistics(userId, gameSlug = null) {
-    console.log(`Fetching statistics for user ${userId}, game: ${gameSlug || 'all'}`);
-    
-    try {
-      const whereClause = { userId: userId };
-      if (gameSlug) {
-        whereClause.gameSlug = gameSlug;
-      }
-
-      const statistics = await this.prisma.playerStatistics.findMany({
-        where: whereClause,
-        include: {
-          user: {
-            include: {
-              profile: true,
-            },
-          },
-        },
-      });
-
-      // Calcular estatísticas derivadas
-      const processedStats = statistics.map(stat => {
-        const totalNormalMatches = stat.wins + stat.losses;
-        const totalWOMatches = stat.winsWO + stat.lossesWO;
-        const winRate = stat.totalMatches > 0 ? ((stat.wins + stat.winsWO) / stat.totalMatches * 100).toFixed(2) : 0;
-        
-        const avgKills = stat.matchesWithKills > 0 ? (stat.kills / stat.matchesWithKills).toFixed(2) : null;
-        const avgAssists = stat.matchesWithAssists > 0 ? (stat.assists / stat.matchesWithAssists).toFixed(2) : null;
-        const avgCaps = stat.matchesWithCaps > 0 ? (stat.caps / stat.matchesWithCaps).toFixed(2) : null;
-
-        return {
-          ...stat,
-          derived: {
-            totalNormalMatches,
-            totalWOMatches,
-            winRate: parseFloat(winRate),
-            avgKills: avgKills ? parseFloat(avgKills) : null,
-            avgAssists: avgAssists ? parseFloat(avgAssists) : null,
-            avgCaps: avgCaps ? parseFloat(avgCaps) : null,
-          },
-        };
-      });
-
-      return { success: true, statistics: processedStats };
-
-    } catch (error) {
-      console.error('Erro ao buscar estatísticas:', error);
-      return { success: false, message: 'Erro interno do servidor.' };
-    }
-  }
-
-  // NOVO MÉTODO: Buscar histórico de partidas do jogador
-  async getPlayerMatchHistory(userId, gameSlug = null, limit = 20, offset = 0) {
-    console.log(`Fetching match history for user ${userId}, game: ${gameSlug || 'all'}`);
-    
-    try {
-      const whereClause = {
-        OR: [
-          { player1Id: userId },
-          { player2Id: userId },
-        ],
-        status: 'COMPLETED',
-      };
-
-      if (gameSlug) {
-        whereClause.gameSlug = gameSlug;
-      }
-
-      const matches = await this.prisma.match.findMany({
-        where: whereClause,
-        include: {
-          player1: { include: { profile: true } },
-          player2: { include: { profile: true } },
-          mediator: { include: { profile: true } },
-          statistics: true,
-        },
-        orderBy: { updatedAt: 'desc' },
-        take: limit,
-        skip: offset,
-      });
-
-      // Processar dados para incluir perspectiva do jogador
-      const processedMatches = matches.map(match => {
-        const isPlayer1 = match.player1Id === userId;
-        const opponent = isPlayer1 ? match.player2 : match.player1;
-        
-        let playerResult = 'draw';
-        if (match.result === 'player1_win' || match.result === 'player1_wo') {
-          playerResult = isPlayer1 ? 'win' : 'loss';
-        } else if (match.result === 'player2_win' || match.result === 'player2_wo') {
-          playerResult = isPlayer1 ? 'loss' : 'win';
-        }
-
-        const playerStats = match.statistics ? {
-          kills: isPlayer1 ? match.statistics.player1Kills : match.statistics.player2Kills,
-          assists: isPlayer1 ? match.statistics.player1Assists : match.statistics.player2Assists,
-          caps: isPlayer1 ? match.statistics.player1Caps : match.statistics.player2Caps,
-        } : null;
-
-        return {
-          id: match.id,
-          opponent: {
-            id: opponent.id,
-            username: opponent.profile?.username || opponent.nome,
-            avatar: opponent.profile?.avatar,
-          },
-          result: playerResult,
-          isWO: match.result.includes('_wo'),
-          gameSlug: match.gameSlug,
-          betAmount: match.betAmount,
-          completedAt: match.updatedAt,
-          statistics: playerStats,
-        };
-      });
-
-      return { success: true, matches: processedMatches };
-
-    } catch (error) {
-      console.error('Erro ao buscar histórico de partidas:', error);
-      return { success: false, message: 'Erro interno do servidor.' };
-    }
-  }
 
   async getMatchDetails(matchId) {
     console.log(`Fetching details for match ${matchId}`);
      const match = await this.prisma.match.findUnique({
       where: { id: matchId },
       include: {
-        // Inclua o perfil de cada participante
         player1: { include: { profile: true } },
         player2: { include: { profile: true } },
         mediator: { include: { profile: true } },
-        // Inclua as mensagens e o perfil de quem enviou cada uma
         conversation: {
           include: {
             messages: {
@@ -726,14 +749,12 @@ class MatchmakingService {
 
  async sendMessage(chatRoomId, senderId, content, messageType) {
     console.log(`Sending message in room ${chatRoomId} from ${senderId}: ${content}`);
-    // --- INÍCIO DA CORREÇÃO ---
     const message = await this.prisma.message.create({
       data: {
         conversation: { connect: { matchId: chatRoomId } },
         sender: { connect: { id: senderId } },
         content,
       },
-      // Inclua os dados do remetente na resposta
       include: {
         sender: {
           include: {
@@ -743,9 +764,7 @@ class MatchmakingService {
       }
     });
     return { success: true, message };
-    
   }
-
 
 async listUserConversations(userId) {
     console.log(`Buscando todas as conversas para o usuário ${userId}`);
@@ -758,31 +777,60 @@ async listUserConversations(userId) {
             },
         },
         include: {
-            // Inclui os participantes para sabermos com quem é a conversa
             participants: {
                 include: {
                     profile: true,
                 },
             },
-            // Inclui a última mensagem para exibir na lista de conversas
             messages: {
                 orderBy: {
                     createdAt: 'desc',
                 },
                 take: 1,
             },
-            // Inclui os detalhes da partida para dar contexto
             match: true,
         },
         orderBy: {
             updatedAt: 'desc',
         },
     });
-    return { success: true, conversations };
-}
 
-}
+    const formattedConversations = conversations.map((conversation) => {
+        const otherParticipants = conversation.participants.filter(
+            (participant) => participant.id !== userId
+        );
 
+        const lastMessage = conversation.messages[0] || null;
+
+        return {
+            id: conversation.id,
+            matchId: conversation.matchId,
+            participants: otherParticipants.map((participant) => ({
+                id: participant.id,
+                username: participant.profile?.username || participant.nome,
+                avatar: participant.profile?.avatar,
+            })),
+            lastMessage: lastMessage
+                ? {
+                      content: lastMessage.content,
+                      createdAt: lastMessage.createdAt,
+                      senderId: lastMessage.senderId,
+                  }
+                : null,
+            match: conversation.match
+                ? {
+                      status: conversation.match.status,
+                      betAmount: conversation.match.betAmount,
+                      gameSlug: conversation.match.gameSlug,
+                  }
+                : null,
+            updatedAt: conversation.updatedAt,
+        };
+    });
+
+    return { success: true, conversations: formattedConversations };
+}
+}
 
 export default MatchmakingService;
 

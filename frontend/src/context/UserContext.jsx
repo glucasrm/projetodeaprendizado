@@ -163,88 +163,125 @@ export const UserProvider = ({ children }) => {
         }
     };
 
-    // NOVA FUNÇÃO: Cancelar partida
+ // FUNÇÃO MODIFICADA: Cancelar partida com atualização de status
     const cancelMatch = async (matchId) => {
-        if (!user || !login) {
-            return { success: false, message: "Usuário não logado." };
-        }
-
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.post(
+            const response = await axios.post(
                 `${import.meta.env.VITE_API_URL}/api/matchmaking/matches/${matchId}/cancel`,
                 {},
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 
-            if (res.status === 200) {
-                // Limpar a partida atual
-                setCurrentMatch(null);
-                
-                // Retornar às filas se aplicável
-                if (res.data.userType === 'player') {
-                    setIsInBetQueue(true);
-                } else if (res.data.userType === 'mediator') {
-                    setIsInMediationQueue(true);
-                }
+            // Atualizar status de apostas após cancelar partida
+            if (response.data.success) {
+                await getUserBetStatus();
+            }
 
-                // Atualizar saldo do usuário
-                fetchUser();
+            return response.data;
+        } catch (error) {
+            console.error('Erro ao cancelar partida:', error);
+            return { success: false, message: 'Erro ao cancelar partida.' };
+        }
+    };
+    
+    // NOVA FUNÇÃO: Verificar status de apostas do usuário 
+    const getUserBetStatus = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                console.error('Token não encontrado');
+                return null;
+            }
 
-                return { 
-                    success: true, 
-                    message: res.data.message, 
-                    gameSlug: res.data.gameSlug,
-                    userType: res.data.userType
-                };
+            const response = await axios.get(
+                `${import.meta.env.VITE_API_URL}/api/matchmaking/bets/status`,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            
+            if (response.data.success) {
+                setBetStatus(response.data);
+                return response.data;
+            } else {
+                console.error('Erro ao obter status de apostas:', response.data.message);
+                return null;
             }
         } catch (error) {
-            console.error('Erro ao cancelar partida:', error.response?.data || error.message);
-            return { success: false, message: error.response?.data?.message || 'Erro ao cancelar partida.' };
+            console.error('Erro ao obter status de apostas:', error);
+            return null;
         }
     };
 
-    const joinBetQueue = async (betAmount, modality, platform, gameSlug) => {
-        if (!user || !login) {
-            return { success: false, message: "Usuário não logado." };
-        }
-
+    // NOVA FUNÇÃO: Verificar se pode entrar em nova aposta
+    const canJoinNewBet = async () => {
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.post(
+            if (!token) {
+                return { success: false, canJoin: false, reason: 'Usuário não autenticado' };
+            }
+
+            const response = await axios.get(
+                `${import.meta.env.VITE_API_URL}/api/matchmaking/bets/can-join`,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            return response.data;
+        } catch (error) {
+            console.error('Erro ao verificar se pode entrar em nova aposta:', error);
+            return { success: false, canJoin: false, reason: 'Erro de conexão' };
+        }
+    };
+
+    // FUNÇÃO MODIFICADA: Entrar na fila de apostas com verificação de limite
+    const joinBetQueue = async (betAmount, modality, platform, gameSlug) => {
+        try {
+            // Primeiro, verificar se pode entrar em nova aposta
+            const canJoinResult = await canJoinNewBet();
+            
+            if (!canJoinResult.success || !canJoinResult.canJoin) {
+                return {
+                    success: false,
+                    message: canJoinResult.reason || 'Você não pode entrar em uma nova aposta no momento.',
+                    isLimitReached: true,
+                    userType: canJoinResult.userType,
+                    currentActive: canJoinResult.currentActive,
+                    maxAllowed: canJoinResult.maxAllowed
+                };
+            }
+
+            // Se pode entrar, fazer a requisição
+            const token = localStorage.getItem('token');
+            const response = await axios.post(
                 `${import.meta.env.VITE_API_URL}/api/matchmaking/bets/join-queue`,
                 { betAmount, modality, platform, gameSlug },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 
-            fetchUser();
-
-            if (res.status === 200 || res.status === 202) {
-                setIsInBetQueue(true);
-                setCurrentBetId(res.data.betId || null);
-
-                if (res.data.matchId) {
-                    setCurrentMatch({
-                        id: res.data.matchId,
-                        player1: res.data.player1,
-                        player2: res.data.player2,
-                        mediator: res.data.mediator,
-                        chatRoomId: res.data.chatRoomId,
-                        status: res.data.status,
-                    });
-                }
-
-                return { success: true, message: res.data.message, ...res.data };
+            // Atualizar status de apostas após entrar na fila
+            if (response.data.success) {
+                await getUserBetStatus();
             }
+
+            return response.data;
         } catch (error) {
-            console.error('Erro ao entrar na fila de apostas:', error.response?.data || error.message);
-            fetchUser();
-            setIsInBetQueue(false);
-            setCurrentBetId(null);
-            setCurrentMatch(null);
-            return { success: false, message: error.response?.data?.message || 'Erro ao entrar na fila.' };
+            console.error('Erro ao entrar na fila de apostas:', error);
+            
+            // Se for erro 409 (Conflict), é limite de apostas
+            if (error.response?.status === 409) {
+                return {
+                    success: false,
+                    message: error.response.data.message || 'Você está no máximo de apostas no momento.',
+                    isLimitReached: true,
+                    details: error.response.data.details
+                };
+            }
+            
+            return { 
+                success: false, 
+                message: 'Erro ao entrar na fila de apostas.' 
+            };
         }
     };
+
 
     const joinMediationQueue = async (modalities, platforms) => {
         if (!user || !login || !user.isAdmin) {
@@ -287,35 +324,29 @@ export const UserProvider = ({ children }) => {
             return { success: false, message: error.response?.data?.message || 'Erro ao entrar na fila de mediação.' };
         }
     };
-
+// FUNÇÃO MODIFICADA: Sair da fila com atualização de status
     const leaveQueue = async (role) => {
-        if (!user || !login) {
-            return { success: false, message: "Usuário não logado." };
-        }
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/matchmaking/queue/leave`, { role },
+            const response = await axios.post(
+                `${import.meta.env.VITE_API_URL}/api/matchmaking/queue/leave`,
+                { role },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 
-            fetchUser(); 
-            if (role === 'player') {
-                setIsInBetQueue(false);
-                setCurrentBetId(null);
-            } else if (role === 'mediator') {
-                setIsInMediationQueue(false);
-                setMediationPreferences({ modalities: [], platforms: [] });
+            // Atualizar status de apostas após sair da fila
+            if (response.data.success && role === 'player') {
+                await getUserBetStatus();
             }
-            setCurrentMatch(null); 
-            return { success: true, message: res.data.message };
+
+            return response.data;
         } catch (error) {
-            console.error('Erro ao sair da fila:', error.response?.data || error.message);
-            fetchUser(); 
-            return { success: false, message: error.response?.data?.message || 'Erro ao sair da fila.' };
+            console.error('Erro ao sair da fila:', error);
+            return { success: false, message: 'Erro ao sair da fila.' };
         }
     };
-
-    // FUNÇÃO MODIFICADA: Finalizar mediação com estatísticas
+    
+    // FUNÇÃO MODIFICADA: Finalizar mediação com atualização de status
     const completeMediation = async (matchId, result, statistics = {}) => {
         try {
             const token = localStorage.getItem('token');
@@ -324,16 +355,23 @@ export const UserProvider = ({ children }) => {
                 { 
                     matchId, 
                     result,
-                    statistics // Novo parâmetro para estatísticas
+                    statistics
                 },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
+
+            // Atualizar status de apostas após finalizar partida
+            if (response.data.success) {
+                await getUserBetStatus();
+            }
+
             return response.data;
         } catch (error) {
             console.error('Erro ao finalizar mediação:', error);
             return { success: false, message: 'Erro ao finalizar mediação.' };
         }
     };
+
 
     // NOVA FUNÇÃO: Buscar estatísticas do usuário logado
     const getMyStatistics = async (gameSlug = null) => {
