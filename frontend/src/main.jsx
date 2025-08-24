@@ -14,7 +14,6 @@ import GamesList from './pages/games/Games-list-page.jsx';
 import GamePage from './pages/games/Game-profile-page.jsx';
 import RankList from './pages/Ranking/Rank-games-page.jsx';
 import MainLayout from './components/navbar/MainLayout.jsx';
-import BettingForm from './pages/apostado/Fila-games-page.jsx'; 
 import ChatLayout from './pages/chat/Chat-page.jsx';
 import OverviewPage from './pages/overview/Overview-games-page.jsx';
 import GamesTorneios from './pages/tournaments/Tournaments-games-page.jsx';
@@ -42,6 +41,7 @@ import ApostadoPage from './pages/apostado/Apostado-games-page';
 import MediationPage from './pages/mediação/Mediation-page';
 import MediationChat from './pages/mediação/mediation-chat-page';
 
+import BetQueuePage from './pages/apostado/BetQueuePage';
 // NOVO IMPORT PARA CHAT DE JOGADORES (se você criar um componente separado)
 // import PlayerChat from './pages/partida/player-chat-page';
 
@@ -102,7 +102,7 @@ createRoot(document.getElementById('root')).render(
                     <Route path="/games/:slug" element={<MainLayout><GamePage/></MainLayout>}>
                         <Route index element={<OverviewPage />} />
                         <Route path="ranking" element={<RankList />} />
-                        <Route path="fila" element={<BettingForm />} /> 
+                        <Route path="fila" element={<BetQueuePage />} /> 
                         <Route path="torneios" element={<GamesTorneios />} />
                         <Route path="apostado" element={<ApostadoPage/>}/>
                         {/* ROTA PARA MEDIAÇÃO DENTRO DO JOGO */}

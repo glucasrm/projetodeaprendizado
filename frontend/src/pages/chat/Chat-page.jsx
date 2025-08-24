@@ -14,23 +14,30 @@ const ChatLayout = () => {
     }, [fetchConversations]);
 
     // Função para formatar o nome da conversa
-    const getConversationName = (convo) => {
-        if (!convo.match) return "Conversa de Partida";
-        // Filtra para não mostrar o nome do usuário atual
-        const otherParticipants = convo.participants.filter(p => p.id !== user.id);
-        if (otherParticipants.length > 1) {
-            return `${otherParticipants[0].profile.username} vs ${otherParticipants[1].profile.username}`;
-        }
-        return "Conversa de Partida";
-    };
+   const getConversationName = (convo) => {
+    if (!convo.match) return "Conversa de Partida";
+
+    const otherParticipants = (convo.participants || []).filter(p => p.id !== user?.id);
+
+    if (otherParticipants.length > 1) {
+        return `${otherParticipants[0]?.profile?.username || 'Jogador 1'} vs ${otherParticipants[1]?.profile?.username || 'Jogador 2'}`;
+    }
+
+    if (otherParticipants.length === 1) {
+        return otherParticipants[0]?.profile?.username || "Oponente";
+    }
+
+    return "Conversa de Partida";
+};
 
     // Função para pegar o avatar (do oponente, por exemplo)
     const getConversationAvatar = (convo) => {
-        const otherParticipant = convo.participants.find(p => p.id !== user.id);
-        return otherParticipant?.profile?.avatar 
-            ? `${import.meta.env.VITE_API_URL}${otherParticipant.profile.avatar}`
-            : 'https://via.placeholder.com/150';
-    };
+    const otherParticipant = (convo.participants || []).find(p => p.id !== user?.id);
+    return otherParticipant?.profile?.avatar 
+        ? `${import.meta.env.VITE_API_URL}${otherParticipant.profile.avatar}`
+        : 'https://via.placeholder.com/150';
+};
+
 
     return (
         <div className="flex h-screen bg-[#0F172A] text-white overflow-hidden">
@@ -55,11 +62,18 @@ const ChatLayout = () => {
                             <div className="flex justify-between items-center">
                                 <span className="font-medium text-lg truncate">{getConversationName(convo)}</span>
                                 <span className="text-xs text-gray-500">
-                                    {convo.messages.length > 0 ? new Date(convo.messages[0].createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                                    {(convo.messages?.length ?? 0) > 0 
+  ? new Date(convo.messages[0].createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
+  : ''
+}
+
                                 </span>
                             </div>
                             <span className="text-sm text-gray-400 truncate block">
-                                {convo.messages.length > 0 ? convo.messages[0].content : 'Nenhuma mensagem ainda.'}
+                                {(convo.messages ?? []).length > 0 
+  ? convo.messages[0].content 
+  : 'Nenhuma mensagem ainda.'}
+
                             </span>
                         </div>
                     </Link>

@@ -27,6 +27,9 @@ export const UserProvider = ({ children }) => {
         totalEarnings: 0,
     });
 
+     //status
+      const [betStatus, setBetStatus] = useState(null); // Estado para status de apostas
+
     // --- Notificações ---
     const [notifications, setNotifications] = useState([]);
     const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
@@ -164,7 +167,7 @@ export const UserProvider = ({ children }) => {
     };
 
  // FUNÇÃO MODIFICADA: Cancelar partida com atualização de status
-    const cancelMatch = async (matchId) => {
+        const cancelMatch = async (matchId) => {
         try {
             const token = localStorage.getItem('token');
             const response = await axios.post(
@@ -184,8 +187,8 @@ export const UserProvider = ({ children }) => {
             return { success: false, message: 'Erro ao cancelar partida.' };
         }
     };
-    
-    // NOVA FUNÇÃO: Verificar status de apostas do usuário 
+
+    // NOVA FUNÇÃO: Verificar status de apostas do usuário
     const getUserBetStatus = async () => {
         try {
             const token = localStorage.getItem('token');
@@ -231,7 +234,30 @@ export const UserProvider = ({ children }) => {
         }
     };
 
-    // FUNÇÃO MODIFICADA: Entrar na fila de apostas com verificação de limite
+    // NOVA FUNÇÃO: Verificar status específico da fila para um jogo
+    const getQueueStatus = async (gameSlug) => {
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                return { success: false, inQueue: false, reason: 'Usuário não autenticado' };
+            }
+
+            const response = await axios.get(
+                `${import.meta.env.VITE_API_URL}/api/matchmaking/queue/status`,
+                { 
+                    headers: { Authorization: `Bearer ${token}` },
+                    params: { gameSlug }
+                }
+            );
+            return response.data;
+        } catch (error) {
+            console.error('Erro ao verificar status da fila:', error);
+            return { success: false, inQueue: false, reason: 'Erro de conexão' };
+        }
+    };
+
+
+     // FUNÇÃO MODIFICADA: Entrar na fila de apostas com verificação de limite
     const joinBetQueue = async (betAmount, modality, platform, gameSlug) => {
         try {
             // Primeiro, verificar se pode entrar em nova aposta
@@ -324,7 +350,7 @@ export const UserProvider = ({ children }) => {
             return { success: false, message: error.response?.data?.message || 'Erro ao entrar na fila de mediação.' };
         }
     };
-// FUNÇÃO MODIFICADA: Sair da fila com atualização de status
+ // FUNÇÃO MODIFICADA: Sair da fila com atualização de status
     const leaveQueue = async (role) => {
         try {
             const token = localStorage.getItem('token');
@@ -345,8 +371,8 @@ export const UserProvider = ({ children }) => {
             return { success: false, message: 'Erro ao sair da fila.' };
         }
     };
-    
-    // FUNÇÃO MODIFICADA: Finalizar mediação com atualização de status
+
+// FUNÇÃO MODIFICADA: Finalizar mediação com atualização de status
     const completeMediation = async (matchId, result, statistics = {}) => {
         try {
             const token = localStorage.getItem('token');
@@ -611,6 +637,10 @@ export const UserProvider = ({ children }) => {
             getPlayerMatchHistory,
             getPlayersRanking,
             getMatchStatistics,
+             getUserBetStatus,
+            betStatus,
+            canJoinNewBet,
+            
         }}>
             {children}
         </UserContext.Provider>
