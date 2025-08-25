@@ -385,7 +385,37 @@ async function matchmakingRoutes(fastify, options) {
         return reply.status(500).send({ success: false, message: 'Erro ao buscar estatísticas da partida.' });
       }
     }
+
+    
   );
+  
+// Rota para estatísticas agregadas de um jogador com filtro de tempo
+fastify.get(
+  "/statistics/player/:userId/summary", // Usamos um nome diferente para não conflitar
+  { 
+    onRequest: [fastify.authenticate],
+    schema: {
+      description: 'Buscar um resumo de estatísticas de um jogador com filtro de período',
+      tags: ['Statistics'],
+      params: {
+        type: 'object',
+        required: ['userId'],
+        properties: {
+          userId: { type: 'string', description: 'ID do usuário' }
+        }
+      },
+      querystring: {
+        type: 'object',
+        properties: {
+          gameSlug: { type: 'string', description: 'Slug do jogo (opcional, se não informado, agrega todos)' },
+          period: { type: 'string', enum: ['monthly', 'all_time'], default: 'all_time', description: 'Período do filtro' }
+        }
+      }
+    }
+  },
+  (request, reply) => matchmakingController.getPlayerStatsSummary(request, reply)
+);
+
 }
 
 export default matchmakingRoutes;

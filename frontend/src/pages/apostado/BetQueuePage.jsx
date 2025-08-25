@@ -27,59 +27,84 @@ const BetQueuePage = () => {
     const [error, setError] = useState('');
 
     // 4. Novos estados para gerenciar o status da fila e o carregamento local
-    const [isCheckingStatus, setIsCheckingStatus] = useState(true);
-    const [isInQueue, setIsInQueue] = useState(false);
-    const [currentBetDetails, setCurrentBetDetails] = useState(null);
+     const [isCheckingStatus, setIsCheckingStatus] = useState(true);
+    const [queueState, setQueueState] = useState({
+        inThisQueue: false, // O usuário está na fila para ESTE jogo?
+        hasActiveBetElsewhere: false, // O usuário tem outra aposta/partida ativa?
+        details: null // Detalhes da aposta na fila atual
+    });
+
     const [showLimitNotification, setShowLimitNotification] = useState(false);
     const [limitNotificationData, setLimitNotificationData] = useState({});
 
     // 5. useEffect para verificar o status do usuário ao carregar o componente
+   
+     // useEffect continua sendo o ponto de partida
     useEffect(() => {
         if (login) {
             checkCurrentQueueStatus();
         } else if (!contextLoading) {
-            // Se não está logado e o contexto já carregou, paramos o loading
             setIsCheckingStatus(false);
         }
-    }, [login, contextLoading, slug]); // Executa quando o login, loading ou slug mudam
+    }, [login, contextLoading, slug]);
 
-    // 6. Função para sincronizar o estado do frontend com o backend
-    const checkCurrentQueueStatus = async () => {
-        setIsCheckingStatus(true);
-        setError('');
-        setMessage('');
-        try {
-            const status = await getUserBetStatus();
-            if (status?.success && status.activeBets) {
-                const queueBet = status.activeBets.find(bet => 
-                    bet.status === 'WAITING_OPPONENT' && bet.gameSlug === slug
-                );
+   const checkCurrentQueueStatus = async () => {
+    setIsCheckingStatus(true);
+    setError('');
+    setMessage('');
+    try {
+        const status = await getUserBetStatus();
+        if (status?.success) {
+ // --- DEBUG LOGS ---
+            console.log("[DEBUG] Slug da URL:", slug);
+            console.log("[DEBUG] Status recebido do backend:", status);
+            if (status.activeBets && status.activeBets.length > 0) {
+                console.log("[DEBUG] Game slug da aposta ativa:", status.activeBets[0].gameSlug);
+                console.log("[DEBUG] Comparação de slugs:", status.activeBets[0].gameSlug === slug);
+            }
+            // --- FIM DEBUG LOGS ---
 
-                if (queueBet) {
-                    // Usuário está na fila para este jogo
-                    setIsInQueue(true);
-                    setCurrentBetDetails(queueBet);
-                    // Pré-preenche os detalhes da aposta para consistência visual
-                    setBetAmount(queueBet.betAmount.toString());
-                    setModality(queueBet.modality);
-                    setPlatform(queueBet.platform);
+            // Verifica se existe QUALQUER aposta na fila de espera
+            const anyWaitingBet = status.activeBets?.find(bet => bet.status === 'WAITING_OPPONENT');
+
+            if (anyWaitingBet) {
+                // O usuário está em uma fila. É esta?
+                if (anyWaitingBet.gameSlug === slug) {
+                    // SIM, é a fila correta. Mostra a tela de "Aguardando".
+                    setQueueState({
+                        inThisQueue: true,
+                        hasActiveBetElsewhere: false,
+                        details: anyWaitingBet
+                    });
+                    setBetAmount(anyWaitingBet.betAmount.toString());
+                    setModality(anyWaitingBet.modality);
+                    setPlatform(anyWaitingBet.platform);
                 } else {
-                    // Usuário não está na fila para este jogo
-                    setIsInQueue(false);
-                    setCurrentBetDetails(null);
+                    // NÃO, é outra fila. Redireciona para a fila correta.
+                    setMessage(`Você já está na fila do jogo ${anyWaitingBet.gameSlug.toUpperCase()}. Redirecionando...`);
+                    setTimeout(() => {
+                        navigate(`/games/${anyWaitingBet.gameSlug}/fila`);
+                    }, 2000); // Espera 2 segundos para o usuário ler a mensagem
                 }
             } else {
-                setIsInQueue(false);
-                setCurrentBetDetails(null);
+                // O usuário não está em nenhuma fila, mas pode ter uma partida ativa.
+                const hasActiveMatch = status.currentActive > 0;
+                setQueueState({
+                    inThisQueue: false,
+                    hasActiveBetElsewhere: hasActiveMatch,
+                    details: null
+                });
             }
-        } catch (err) {
-            setError('Erro ao verificar seu status na fila. Tente recarregar a página.');
-            console.error('[BetQueuePage] Erro ao verificar status:', err);
-        } finally {
-            setIsCheckingStatus(false);
+        } else {
+            setQueueState({ inThisQueue: false, hasActiveBetElsewhere: false, details: null });
         }
-    };
-
+    } catch (err) {
+        setError('Erro ao verificar seu status na fila. Tente recarregar a página.');
+        console.error('[BetQueuePage] Erro ao verificar status:', err);
+    } finally {
+        setIsCheckingStatus(false);
+    }
+};
     const handleSubmit = async (e) => {
         e.preventDefault();
         setMessage('');
@@ -176,7 +201,7 @@ const BetQueuePage = () => {
     }
     
     // 9. Lógica para mostrar aviso de limite de apostas
-    const cannotJoin = betStatus && !betStatus.canJoinNewBet && !isInQueue;
+    const cannotJoin = betStatus && !betStatus.canJoinNewBet;
     
     return (
         <>
@@ -200,60 +225,58 @@ const BetQueuePage = () => {
                                 R$ {user.balance ? parseFloat(user.balance).toFixed(2) : '0.00'}
                             </span>
                         </p>
-                    )}
-
-                    {/* 10. Usar o estado local `isInQueue` para renderização condicional */}
-                    {isInQueue && currentBetDetails ? (
+                    )}i
+{/* CASO 1: Usuário está na fila para ESTE jogo */}
+                    {queueState.inThisQueue ? (
                         <div className="bg-gray-700 p-8 rounded-xl text-center border-2 border-sky-500 flex flex-col items-center justify-center space-y-5">
                             <div className="flex items-center space-x-3">
                                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-400"></div>
                                 <p className="text-xl font-bold text-sky-400">Você está na fila de espera</p>
                             </div>
-                            <p className="text-lg text-gray-300">Aguardando oponente...</p>
+                            <p className="text-lg text-gray-300">Aguardando oponente para {slug?.toUpperCase()}...</p>
                             
                             <div className="bg-gray-600 p-4 rounded-lg">
                                 <p className="text-sm text-gray-300 mb-2">Detalhes da sua aposta:</p>
                                 <div className="space-y-1 text-sm">
-                                    <p><span className="font-semibold">Valor:</span> R$ {parseFloat(currentBetDetails.betAmount).toFixed(2)}</p>
-                                    <p><span className="font-semibold">Modalidade:</span> {currentBetDetails.modality}</p>
-                                    <p><span className="font-semibold">Plataforma:</span> {currentBetDetails.platform}</p>
-                                    {slug && <p><span className="font-semibold">Jogo:</span> {slug.toUpperCase()}</p>}
+                                    <p><span className="font-semibold">Valor:</span> R$ {parseFloat(queueState.details.betAmount).toFixed(2)}</p>
+                                    <p><span className="font-semibold">Modalidade:</span> {queueState.details.modality}</p>
+                                    <p><span className="font-semibold">Plataforma:</span> {queueState.details.platform}</p>
                                 </div>
                             </div>
                             
-                            <button
-                                onClick={handleLeaveQueue}
-                                className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-8 rounded-lg text-lg transition duration-300 ease-in-out transform hover:scale-105 shadow-lg"
-                            >
+                            <button onClick={handleLeaveQueue} className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-8 rounded-lg ...">
                                 Sair da Fila
                             </button>
                         </div>
                     ) : (
                         <>
-                            {cannotJoin && (
+                            {/* CASO 2: Usuário tem outra aposta/partida ativa */}
+                            {queueState.hasActiveBetElsewhere && (
                                 <div className="bg-orange-900 border border-orange-700 text-white p-4 rounded-lg mb-6">
                                     <h4 className="font-bold text-orange-400">Limite de Apostas Atingido</h4>
                                     <p className="text-sm mt-1">
-                                        Você já possui {betStatus.currentActive} aposta(s) ativa(s). 
-                                        Finalize-as antes de entrar em uma nova fila.
+                                        Você já possui uma aposta ou partida ativa. 
+                                        Finalize-a antes de entrar em uma nova fila.
                                     </p>
                                     <button
                                         onClick={() => {
                                             setLimitNotificationData({
-                                                userType: betStatus.userType,
-                                                currentActive: betStatus.currentActive,
-                                                maxAllowed: betStatus.maxAllowed,
-                                                activeBets: betStatus.activeBets || [],
-                                                activeMatches: betStatus.activeMatches || []
+                                                userType: betStatus?.userType,
+                                                currentActive: betStatus?.currentActive,
+                                                maxAllowed: betStatus?.maxAllowed,
+                                                activeBets: betStatus?.activeBets || [],
+                                                activeMatches: betStatus?.activeMatches || []
                                             });
                                             setShowLimitNotification(true);
                                         }}
                                         className="text-orange-400 hover:text-orange-300 text-sm font-semibold mt-2 underline"
                                     >
-                                        Ver detalhes
+                                        Ver detalhes da atividade
                                     </button>
                                 </div>
                             )}
+
+                            {/* CASO 3: Usuário está livre para entrar na fila */}
                             <form onSubmit={handleSubmit} className={`flex flex-col space-y-6 ${cannotJoin ? 'opacity-50 pointer-events-none' : ''}`}>
                                 {/* ... (o resto do formulário permanece igual) ... */}
                                 <div className="flex flex-col">
@@ -292,8 +315,7 @@ const BetQueuePage = () => {
                                 </button>
                             </form>
                         </>
-                    )}
-                </div>
+                    )}                </div>
             </MatchRedirect>
             {/* 11. Renderizar o modal de notificação */}
             <BetLimitNotification

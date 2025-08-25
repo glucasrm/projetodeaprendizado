@@ -94,95 +94,118 @@ class MatchmakingService {
     }
   }
 
-     // MÉTODO MODIFICADO: Verificar e limpar apostas ativas
-  async checkActiveUserBetsWithDebug(userId) {
-    try {
-      console.log(`🧹 [AUTO-CLEANUP] Iniciando verificação e limpeza para usuário ${userId}`);
 
-      // 1. Encontrar apostas que estão 'MATCHED' mas cuja partida já terminou.
-      const orphanedMatchedBets = await this.prisma.directBet.findMany({
-        where: {
-          playerId: userId,
-          status: 'MATCHED',
-          match: {
-            status: { in: ['COMPLETED', 'CANCELLED'] }
-          }
+// MÉTODO CORRIGIDO E COMPLETO: Verificar e limpar apostas ativas
+async checkActiveUserBetsWithDebug(userId) {
+  try {
+    console.log(`🧹 [AUTO-CLEANUP] Iniciando verificação e limpeza para usuário ${userId}`);
+
+    // 1. Limpar apostas 'MATCHED' de partidas que já terminaram
+    const orphanedMatchedBets = await this.prisma.directBet.findMany({
+      where: {
+        playerId: userId,
+        status: 'MATCHED',
+        match: {
+          status: { in: ['COMPLETED', 'CANCELLED'] }
         }
-      });
-
-      if (orphanedMatchedBets.length > 0) {
-        const betIdsToClean = orphanedMatchedBets.map(b => b.id);
-        console.log(`🧹 [AUTO-CLEANUP] Encontradas ${orphanedMatchedBets.length} apostas 'MATCHED' com partidas finalizadas. Limpando...`, betIdsToClean);
-        await this.prisma.directBet.updateMany({
-          where: { id: { in: betIdsToClean } },
-          data: { status: 'COMPLETED' } // Marcar como COMPLETED
-        });
       }
+    });
 
-      // 2. Encontrar apostas 'WAITING_OPPONENT' que estão presas na fila por muito tempo (ex: > 1 hora)
-      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-      const oldWaitingBets = await this.prisma.directBet.findMany({
-        where: {
-          playerId: userId,
-          status: 'WAITING_OPPONENT',
-          createdAt: { lt: oneHourAgo }
-        }
+    if (orphanedMatchedBets.length > 0) {
+      const betIdsToClean = orphanedMatchedBets.map(b => b.id);
+      console.log(`🧹 [AUTO-CLEANUP] Encontradas ${orphanedMatchedBets.length} apostas 'MATCHED' com partidas finalizadas. Limpando...`, betIdsToClean);
+      await this.prisma.directBet.updateMany({
+        where: { id: { in: betIdsToClean } },
+        data: { status: 'COMPLETED' }
       });
-
-      if (oldWaitingBets.length > 0) {
-        const betIdsToCancel = oldWaitingBets.map(b => b.id);
-        console.log(`🧹 [AUTO-CLEANUP] Encontradas ${oldWaitingBets.length} apostas 'WAITING_OPPONENT' muito antigas. Cancelando...`, betIdsToCancel);
-        await this.prisma.directBet.updateMany({
-          where: { id: { in: betIdsToCancel } },
-          data: { status: 'CANCELED' } // Marcar como CANCELED
-        });
-      }
-      
-      // 3. Agora, com os dados limpos, prossiga com a verificação normal
-      console.log(`🔍 [DEBUG] Verificação pós-limpeza para usuário ${userId}`);
-      
-      // ... (o resto da sua lógica de `checkActiveUserBetsWithDebug` continua aqui)
-      // ...
-      const activeBets = await this.prisma.directBet.findMany({ /* ... */ });
-      const activeMatches = await this.prisma.match.findMany({ /* ... */ });
-      // ...
-      // ... (retornar o resultado)
-
-      // O resto da função permanece o mesmo...
-      console.log(`📋 [DEBUG] Buscando apostas diretas com status WAITING_OPPONENT ou MATCHED...`);
-      const finalActiveBets = await this.prisma.directBet.findMany({
-        where: {
-          playerId: userId,
-          status: { in: ['WAITING_OPPONENT', 'MATCHED'] }
-        },
-        // ... include e orderBy
-      });
-
-      console.log(`🎮 [DEBUG] Buscando partidas com status PENDING_CONFIRMATION ou IN_PROGRESS...`);
-      const finalActiveMatches = await this.prisma.match.findMany({
-        where: {
-          OR: [{ player1Id: userId }, { player2Id: userId }],
-          status: { in: ['PENDING_CONFIRMATION', 'IN_PROGRESS'] }
-        },
-        // ... select e orderBy
-      });
-
-      const totalActive = finalActiveBets.length + finalActiveMatches.length;
-
-      const result = {
-        totalActive,
-        // ... mapear os resultados de finalActiveBets e finalActiveMatches
-      };
-
-      console.log(`✅ [DEBUG] Verificação de apostas ativas concluída:`, result);
-      return result;
-
-    } catch (error) {
-      console.error('❌ [DEBUG] Erro ao verificar/limpar apostas ativas:', error);
-      // Retornar um estado seguro em caso de erro
-      return { totalActive: 0, bets: [], matches: [] };
     }
+
+    // 2. Limpar apostas 'WAITING_OPPONENT' presas na fila por muito tempo (> 1 hora)
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const oldWaitingBets = await this.prisma.directBet.findMany({
+      where: {
+        playerId: userId,
+        status: 'WAITING_OPPONENT',
+        createdAt: { lt: oneHourAgo }
+      }
+    });
+
+    if (oldWaitingBets.length > 0) {
+      const betIdsToCancel = oldWaitingBets.map(b => b.id);
+      console.log(`🧹 [AUTO-CLEANUP] Encontradas ${oldWaitingBets.length} apostas 'WAITING_OPPONENT' muito antigas. Cancelando...`, betIdsToCancel);
+      await this.prisma.directBet.updateMany({
+        where: { id: { in: betIdsToCancel } },
+        data: { status: 'CANCELED' }
+      });
+    }
+    
+    // 3. Agora, com os dados limpos, prossiga com a verificação normal
+    console.log(`🔍 [DEBUG] Verificação pós-limpeza para usuário ${userId}`);
+    
+    console.log(`📋 [DEBUG] Buscando apostas diretas com status WAITING_OPPONENT ou MATCHED...`);
+    const finalActiveBets = await this.prisma.directBet.findMany({
+      where: {
+        playerId: userId,
+        status: { in: ['WAITING_OPPONENT', 'MATCHED'] }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    console.log(`🎮 [DEBUG] Buscando partidas com status PENDING_CONFIRMATION ou IN_PROGRESS...`);
+    const finalActiveMatches = await this.prisma.match.findMany({
+      where: {
+        OR: [{ player1Id: userId }, { player2Id: userId }],
+        status: { in: ['PENDING_CONFIRMATION', 'IN_PROGRESS'] }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    const totalActive = finalActiveBets.length + finalActiveMatches.length;
+
+    // ==================================================================
+    // PARTE COMPLETADA: Mapear os resultados para o frontend
+    // ==================================================================
+    const result = {
+      totalActive,
+      bets: finalActiveBets.map(bet => ({
+        id: bet.id,
+        betAmount: bet.betAmount,
+        modality: bet.modality,
+        platform: bet.platform,
+        gameSlug: bet.gameSlug,
+        status: bet.status,
+        createdAt: bet.createdAt
+      })),
+      matches: finalActiveMatches.map(match => ({
+        id: match.id,
+        matchId: match.id, // Adicionar para consistência
+        betAmount: match.betAmount,
+        modality: match.modality,
+        platform: match.platform,
+        gameSlug: match.gameSlug,
+        status: match.status,
+        createdAt: match.createdAt,
+        // Adicionar oponentes pode ser útil no futuro
+        player1Id: match.player1Id,
+        player2Id: match.player2Id
+      }))
+    };
+    // ==================================================================
+
+    console.log(`✅ [DEBUG] Verificação de apostas ativas concluída:`, result);
+    return result;
+
+  } catch (error) {
+    console.error('❌ [DEBUG] Erro ao verificar/limpar apostas ativas:', error);
+    // Retornar um estado seguro em caso de erro
+    return { totalActive: 0, bets: [], matches: [] };
   }
+}
+
 
   
   // MÉTODO ORIGINAL: Verificar apostas ativas (mantido para compatibilidade)
@@ -190,48 +213,88 @@ class MatchmakingService {
     return await this.checkActiveUserBetsWithDebug(userId);
   }
 
-  // MÉTODO MODIFICADO: Obter status de apostas com logs detalhados
+   // NOVA FUNÇÃO: Lógica de limpeza reutilizável
+  async cleanupStaleBetsForUser(userId) {
+    console.log(`🧹 [AUTO-CLEANUP] Iniciando limpeza de apostas obsoletas para ${userId}`);
+    
+    // 1. Limpar apostas 'MATCHED' de partidas que já terminaram
+    const cleanedFromCompletedMatches = await this.prisma.directBet.updateMany({
+      where: {
+        playerId: userId,
+        status: 'MATCHED',
+        match: {
+          status: { in: ['COMPLETED', 'CANCELLED'] }
+        }
+      },
+      data: { status: 'COMPLETED' }
+    });
+
+    if (cleanedFromCompletedMatches.count > 0) {
+      console.log(`🧹 [AUTO-CLEANUP] ${cleanedFromCompletedMatches.count} apostas 'MATCHED' limpas (partidas finalizadas).`);
+    }
+
+    // 2. Limpar apostas 'MATCHED' de partidas abandonadas (ex: presas em PENDING_CONFIRMATION por mais de 15 minutos)
+    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+    const cleanedFromAbandonedMatches = await this.prisma.directBet.updateMany({
+      where: {
+        playerId: userId,
+        status: 'MATCHED',
+        match: {
+          status: 'PENDING_CONFIRMATION',
+          createdAt: { lt: fifteenMinutesAgo }
+        }
+      },
+      // Reverte a aposta para a fila e desvincula da partida abandonada
+      data: { status: 'WAITING_OPPONENT', matchId: null } 
+    });
+
+    if (cleanedFromAbandonedMatches.count > 0) {
+      console.log(`🧹 [AUTO-CLEANUP] ${cleanedFromAbandonedMatches.count} apostas revertidas para a fila (partidas abandonadas).`);
+      // Opcional: Notificar o usuário que ele voltou para a fila
+      await this.notificationService.createNotification(
+        userId, 'match_abandoned', 'Sua partida foi cancelada por inatividade e você retornou à fila.', {}, '/minhas-apostas'
+      );
+    }
+  }
+
+
+  // MÉTODO MODIFICADO: getUserBetStatus agora chama a limpeza primeiro
   async getUserBetStatus(userId) {
     try {
-      console.log(`🔍 [DEBUG] Obtendo status de apostas para usuário ${userId}`);
+      // PASSO 1: Executar a limpeza antes de verificar o status
+      await this.cleanupStaleBetsForUser(userId);
+
+      // PASSO 2: Continuar com a lógica original, mas agora sobre dados limpos
+      console.log(`🔍 [DEBUG] Obtendo status de apostas para usuário ${userId} (pós-limpeza)`);
       
       const user = await this.prisma.user.findUnique({
         where: { id: userId },
         select: { id: true, isAdmin: true }
       });
 
-      console.log(`👤 [DEBUG] Dados do usuário para status:`, user);
-
       if (!user) {
-        console.log(`❌ [DEBUG] Usuário não encontrado para status`);
         return { success: false, message: 'Usuário não encontrado.' };
       }
 
-      const activeUserBets = await this.checkActiveUserBetsWithDebug(userId);
-      
-      const maxAllowed = user.isAdmin ? 'unlimited' : 1;
-      const canJoinNewBet = user.isAdmin || activeUserBets.totalActive === 0;
+      // A função checkActiveUserBets agora opera sobre um estado mais confiável
+const activeUserBets = await this.checkActiveUserBets(userId);
+const maxAllowed = user.isAdmin ? 'unlimited' : 1;
+const canJoinNewBet = user.isAdmin || activeUserBets.totalActive === 0;
 
-      const result = {
-        success: true,
-        userType: user.isAdmin ? 'admin' : 'player',
-        maxAllowed,
-        currentActive: activeUserBets.totalActive,
-        canJoinNewBet,
-        activeBets: activeUserBets.bets,
-        activeMatches: activeUserBets.matches
-      };
-
-      console.log(`✅ [DEBUG] Status de apostas obtido:`, result);
-      return result;
-
+return {
+    success: true,
+    userType: user.isAdmin ? 'admin' : 'player',
+    maxAllowed,
+    currentActive: activeUserBets.totalActive,
+    canJoinNewBet,
+    activeBets: activeUserBets.bets,        
+    activeMatches: activeUserBets.matches   
+};
     } catch (error) {
-      console.error('❌ [DEBUG] Erro ao obter status de apostas:', error);
-      console.error('📍 [DEBUG] Stack trace:', error.stack);
+      console.error('Erro ao obter status de apostas:', error);
       return { success: false, message: 'Erro interno do servidor.' };
     }
   }
-
   
   // NOVO MÉTODO: Limpar apostas órfãs (apenas para debug/emergência)
   async cleanupOrphanedBets(userId) {
@@ -853,27 +916,41 @@ class MatchmakingService {
   }
 
   async getMatchDetails(matchId) {
-    console.log(`Fetching details for match ${matchId}`);
-     const match = await this.prisma.match.findUnique({
-      where: { id: matchId },
-      include: {
-        player1: { include: { profile: true } },
-        player2: { include: { profile: true } },
-        mediator: { include: { profile: true } },
-        conversation: {
-          include: {
-            messages: {
-              include: {
-                sender: { include: { profile: true } }
-              },
-              orderBy: { createdAt: 'asc' }
-            }
+  console.log(`Fetching details for match ${matchId}`);
+  
+  // Adicionar uma verificação para evitar a chamada com 'undefined'
+  if (!matchId) {
+    console.error("❌ Tentativa de buscar detalhes da partida com ID nulo ou indefinido.");
+    return { success: false, message: "ID da partida não fornecido." };
+  }
+
+  const match = await this.prisma.match.findUnique({
+    where: { id: matchId }, // A busca é SÓ pelo ID, sem filtro de status.
+    include: {
+      player1: { include: { profile: true } },
+      player2: { include: { profile: true } },
+      mediator: { include: { profile: true } },
+      conversation: {
+        include: {
+          messages: {
+            include: {
+              sender: { include: { profile: true } }
+            },
+            orderBy: { createdAt: 'asc' }
           }
         }
-      },
-    });
-    return { success: true, match };
+      }
+    },
+  });
+
+  // Adicionar uma verificação para o caso de a partida realmente não existir
+  if (!match) {
+    console.log(`❌ Partida com ID ${matchId} não encontrada no banco de dados.`);
+    return { success: false, message: "Partida não encontrada." };
   }
+
+  return { success: true, match };
+}
 
   async getChatHistory(chatRoomId) {
     console.log(`Fetching chat history for room ${chatRoomId}`);
@@ -939,34 +1016,122 @@ async listUserConversations(userId) {
 
         const lastMessage = conversation.messages[0] || null;
 
-        return {
-            id: conversation.id,
-            matchId: conversation.matchId,
+         return {
+            // Usamos o matchId como o identificador principal para a URL.
+            // É o ID mais confiável que temos.
+            id: conversation.matchId, // <-- MUITO IMPORTANTE: O ID principal do item da lista é o ID da partida.
+            
+            conversationId: conversation.id, // Opcional: manter o ID da conversa se precisar para algo específico.
+            
             participants: otherParticipants.map((participant) => ({
                 id: participant.id,
                 username: participant.profile?.username || participant.nome,
                 avatar: participant.profile?.avatar,
             })),
-            lastMessage: lastMessage
-                ? {
-                      content: lastMessage.content,
-                      createdAt: lastMessage.createdAt,
-                      senderId: lastMessage.senderId,
-                  }
-                : null,
-            match: conversation.match
-                ? {
-                      status: conversation.match.status,
-                      betAmount: conversation.match.betAmount,
-                      gameSlug: conversation.match.gameSlug,
-                  }
-                : null,
+            lastMessage: lastMessage ? {
+                content: lastMessage.content,
+                createdAt: lastMessage.createdAt,
+                senderId: lastMessage.senderId,
+            } : null,
+            match: conversation.match ? { // Manter detalhes da partida é bom
+                status: conversation.match.status,
+                betAmount: conversation.match.betAmount,
+                gameSlug: conversation.match.gameSlug,
+            } : null,
             updatedAt: conversation.updatedAt,
         };
     });
 
     return { success: true, conversations: formattedConversations };
 }
+ async getPlayerStatsSummary(userId, gameSlug, period = 'all_time') {
+    console.log(`📊 Buscando resumo de estatísticas para ${userId}, jogo: ${gameSlug || 'todos'}, período: ${period}`);
+    
+    // 1. Definir o filtro de data
+    const dateFilter = {};
+    if (period === 'monthly') {
+      const oneMonthAgo = new Date();
+      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+      dateFilter.completedAt = { gte: oneMonthAgo };
+    }
+
+    // 2. Definir o filtro de jogo
+    const gameFilter = {};
+    if (gameSlug) {
+      gameFilter.match = { gameSlug: gameSlug };
+    }
+
+    // 3. Buscar todas as estatísticas de partidas relevantes para o usuário
+    const matchStats = await this.prisma.matchStatistics.findMany({
+      where: {
+        ...dateFilter, // Aplica o filtro de data
+        ...gameFilter, // Aplica o filtro de jogo
+        match: {
+          // Garante que a partida envolva o usuário
+          OR: [
+            { player1Id: userId },
+            { player2Id: userId },
+          ],
+        },
+      },
+      include: {
+        match: true, // Inclui os dados da partida para saber quem é player1/player2
+      },
+    });
+
+    if (matchStats.length === 0) {
+      return { success: true, summary: { totalMatches: 0, wins: 0, kills: 0, caps: 0, capsPercentage: 0 } };
+    }
+
+    // 4. Processar e agregar os resultados
+    let totalMatches = matchStats.length;
+    let wins = 0;
+    let kills = 0;
+    let caps = 0;
+    let matchesWithCaps = 0;
+
+    for (const stat of matchStats) {
+      const isPlayer1 = stat.match.player1Id === userId;
+      
+      // Contabilizar vitórias
+      if ((isPlayer1 && (stat.result === 'player1_win' || stat.result === 'player1_wo')) ||
+          (!isPlayer1 && (stat.result === 'player2_win' || stat.result === 'player2_wo'))) {
+        wins++;
+      }
+
+      // Contabilizar Kills
+      const playerKills = isPlayer1 ? stat.player1Kills : stat.player2Kills;
+      if (playerKills !== null) {
+        kills += playerKills;
+      }
+
+      // Contabilizar "Capas" e partidas com capas
+      const playerCaps = isPlayer1 ? stat.player1Caps : stat.player2Caps;
+      if (playerCaps !== null) {
+        caps += playerCaps;
+        matchesWithCaps++; // Só incrementa se o valor de capas foi registrado
+      }
+    }
+
+    // 5. Calcular a porcentagem de capas de forma segura
+    const capsPercentage = matchesWithCaps > 0 ? Math.round((caps / matchesWithCaps) * 100) : 0;
+    // Nota: A lógica aqui calcula a MÉDIA de capas por partida com capa, e multiplica por 100.
+    // Se "porcentagem de capas" significa outra coisa, podemos ajustar aqui.
+    // Por exemplo, se uma partida tem 5 capas possíveis e o jogador fez 3, isso seria 60%.
+    // Como não temos o "total possível", calcularemos a média por enquanto.
+
+    const summary = {
+      totalMatches,
+      wins,
+      kills,
+      caps,
+      capsPercentage,
+      winRate: totalMatches > 0 ? Math.round((wins / totalMatches) * 100) : 0,
+    };
+
+    return { success: true, summary };
+  }
+
 }
 
 export default MatchmakingService;

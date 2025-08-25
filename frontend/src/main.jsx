@@ -38,12 +38,11 @@ import Main from './components/home/Mainhome';
 import ApostadoPage from './pages/apostado/Apostado-games-page';
 
 // IMPORTS PARA MEDIAÇÃO E CHAT
-import MediationPage from './pages/mediação/Mediation-page';
 import MediationChat from './pages/mediação/mediation-chat-page';
 
 import BetQueuePage from './pages/apostado/BetQueuePage';
-// NOVO IMPORT PARA CHAT DE JOGADORES (se você criar um componente separado)
-// import PlayerChat from './pages/partida/player-chat-page';
+
+import ProfileStats from './pages/overview/Overview-stats-page';
 
 createRoot(document.getElementById('root')).render(
     <StrictMode>
@@ -70,20 +69,10 @@ createRoot(document.getElementById('root')).render(
                     <Route path="/search" element={<MainLayout><UserSearchPage /></MainLayout>} />
                     <Route path="apostado" element={<MainLayout><ApostadoPage/></MainLayout>}/>
 
-                    {/* ROTAS DE MEDIAÇÃO MELHORADAS */}
-                    <Route path="/mediacao" element={<MainLayout><MediationPage /></MainLayout>} />
-                    <Route path="/mediacao/chat/:chatRoomId" element={<MainLayout><MediationChat /></MainLayout>} />
+                                {/* A ROTA DE CHAT AGORA É ÚNICA E PODEROSA */}
+                    <Route path="/chat" element={<MainLayout><ChatLayout/></MainLayout>} />
+                    <Route path="/chat/:chatId" element={<MainLayout><ChatLayout/></MainLayout>} /> {/* Opcional: para links diretos */}
 
-                    {/* NOVAS ROTAS PARA CHAT DE JOGADORES */}
-                    {/* 
-                    Opção 1: Usar o mesmo componente MediationChat para jogadores
-                    Opção 2: Criar um componente PlayerChat específico
-                    Por enquanto, vamos usar o MediationChat para ambos
-                    */}
-                    <Route path="/partida/chat/:chatRoomId" element={<MainLayout><MediationChat /></MainLayout>} />
-                    
-                    {/* ROTA ALTERNATIVA PARA COMPATIBILIDADE */}
-                    <Route path="/match/chat/:chatRoomId" element={<MainLayout><MediationChat /></MainLayout>} />
 
                     {/*abas do perfil page - Rota para o perfil do usuário logado*/}
                     <Route path="/perfil" element={<MainLayout><PerfilPage /></MainLayout>}>
@@ -91,6 +80,7 @@ createRoot(document.getElementById('root')).render(
                         <Route path="amigos" element={<AmigosList />} />
                         <Route path="equipes" element={<EquipeList />} />
                         <Route path="torneios-usuario" element={<TorneiosDoUsuario />} />
+                        <Route path="estatisticas" element={<ProfileStats />} />
                     </Route>
 
                     {/*abas do perfil page - Rota para perfis públicos usando userId */}
@@ -105,8 +95,6 @@ createRoot(document.getElementById('root')).render(
                         <Route path="fila" element={<BetQueuePage />} /> 
                         <Route path="torneios" element={<GamesTorneios />} />
                         <Route path="apostado" element={<ApostadoPage/>}/>
-                        {/* ROTA PARA MEDIAÇÃO DENTRO DO JOGO */}
-                        <Route path="mediacao" element={<MediationPage/>}/>
                     </Route>
 
                     {/* Rotas SEM Navbar */}

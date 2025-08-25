@@ -565,42 +565,86 @@ export const UserProvider = ({ children }) => {
 
     // --- reação a notificações de partida ---
     useEffect(() => {
-        if (notifications.length > 0) {
-            const matchNotification = notifications.find(n => 
-                !n.read && 
-                (n.type === 'match_found_player' || n.type === 'match_assigned_mediator')
-            );
+    // Só executa se houver notificações novas
+    if (notifications.length === 0) return;
 
-            if (matchNotification && matchNotification.matchId) {
-                console.log('Notificação de partida encontrada com ID:', matchNotification.matchId);
-                getMatchDetails(matchNotification.matchId).then(matchData => {
-                    if (matchData && matchData.success) {
-                        setCurrentMatch(matchData.match);
-                        // Adicionar lógica para sair da fila aqui, se a notificação indicar isso
-                        if (matchNotification.type === 'match_found_player') {
-                            setIsInBetQueue(false);
-                        } else if (matchNotification.type === 'match_assigned_mediator') {
-                            setIsInMediationQueue(false);
-                        }
-                        markNotificationsAsRead([matchNotification.id]);
-                    }
-                });
+    const unreadMatchNotification = notifications.find(n => 
+        !n.read && 
+        n.matchId && // Garante que a notificação tem um matchId
+        (n.type === 'match_found_player' || n.type === 'match_assigned_mediator')
+    );
+
+    if (unreadMatchNotification) {
+        console.log('🔔 Notificação de partida não lida encontrada:', unreadMatchNotification);
+        
+        getMatchDetails(unreadMatchNotification.matchId).then(matchData => {
+            // Se a busca foi bem sucedida E a partida ainda está ativa
+            if (matchData?.success && ['PENDING_CONFIRMATION', 'IN_PROGRESS'].includes(matchData.match.status)) {
+                console.log('✅ Partida ativa encontrada, definindo como partida atual:', matchData.match);
+                setCurrentMatch(matchData.match);
+                
+                // Limpa o estado da fila correspondente
+                if (unreadMatchNotification.type === 'match_found_player') {
+                    setIsInBetQueue(false);
+                } else if (unreadMatchNotification.type === 'match_assigned_mediator') {
+                    setIsInMediationQueue(false);
+                }
+                
+                // Marca a notificação como lida para não processar de novo
+                markNotificationsAsRead([unreadMatchNotification.id]);
+            } else {
+                console.log('☑️ Notificação de partida encontrada, mas a partida não está mais ativa ou não foi encontrada. Ignorando.');
             }
-        }
-    }, [notifications, getMatchDetails, markNotificationsAsRead, setIsInBetQueue, setIsInMediationQueue]); 
-     
-    useEffect(() => {
-        fetchUser();
-    }, [fetchUser]);
+        });
+    }
+}, [notifications, getMatchDetails, markNotificationsAsRead]);
 
-    useEffect(() => {
+   // Efeito principal para buscar dados essenciais após o login
+useEffect(() => {
+    const loadInitialData = async () => {
         if (login) {
-            fetchNotifications();
+            console.log("✅ [Context] Usuário logado. Buscando dados iniciais...");
+            // Busca notificações e conversas em paralelo para mais performance
+            await Promise.all([
+                fetchNotifications(),
+                fetchConversations()
+            ]);
         } else {
+            console.log("☑️ [Context] Usuário não logado. Limpando dados.");
+            // Limpa os estados se o usuário deslogar
             setNotifications([]);
             setUnreadNotificationsCount(0);
+            setConversations([]);
         }
-    }, [login, fetchNotifications]);
+    };
+
+    loadInitialData();
+}, [login, fetchNotifications, fetchConversations]); // Depende do login e das funções de fetch
+
+// Efeito para o polling (atualização periódica)
+useEffect(() => {
+    if (login) {
+        console.log("🔄 [Context] Iniciando polling a cada 15 segundos.");
+        const interval = setInterval(() => {
+            console.log("🔄 [Polling] Buscando notificações e conversas...");
+            fetchNotifications();
+            fetchConversations();
+        }, 15000); // Aumentado para 15s para reduzir carga no servidor
+        
+        // Limpa o intervalo quando o componente desmonta ou o usuário desloga
+        return () => {
+            console.log("🛑 [Context] Parando polling.");
+            clearInterval(interval);
+        };
+    }
+}, [login, fetchNotifications, fetchConversations]);
+
+// Efeito para buscar o usuário ao carregar o provedor (só roda uma vez)
+useEffect(() => {
+    console.log("🚀 [Context] UserProvider montado. Verificando token...");
+    fetchUser();
+}, [fetchUser]); // fetchUser é um useCallback, então não causa re-renderizações desnecessárias
+
 
     return (
         <UserContext.Provider value={{

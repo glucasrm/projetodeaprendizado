@@ -64,6 +64,7 @@ const PerfilPage = () => {
     if (location.pathname.includes('/amigos')) return 'amigos';
     if (location.pathname.includes('/equipes')) return 'equipes';
     if (location.pathname.includes('/torneios-usuario')) return 'torneios-usuario';
+    if (location.pathname.includes('/estatisticas')) return 'estatisticas';
     // Se não houver sub-rota ou for a rota base do perfil, é a visão geral
     if (location.pathname === `/perfil` || location.pathname === `/perfil/${userId}`) return 'overview';
     return null;
@@ -150,6 +151,15 @@ const PerfilPage = () => {
                 >
                   Torneios
                 </button>
+                        <button
+                  onClick={() => navigate(userId ? `/perfil/${userId}/estatisticas` : '/perfil/estatisticas')}
+                  className={`pb-2 transition ${
+                    activeTab === 'estatisticas' ? 'text-blue-700 border-b-2 border-blue-700' : 'hover:text-blue-800'
+                  }`}
+                >
+                  Estatísticas
+                </button>
+
               </>
             )}
             {userId && ( // Se há userId na URL, é um perfil público, mostra apenas Visão Geral

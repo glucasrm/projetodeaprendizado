@@ -281,6 +281,18 @@ async joinMediationQueue(request, reply) {
         request.log.error(error);
         return reply.status(500).send({ message: "Erro ao buscar conversas.", error: error.message });
     }
+  }
+
+  async getPlayerStatsSummary(request, reply) {
+  try {
+    const { userId } = request.params;
+    const { gameSlug, period } = request.query;
+    const stats = await this.matchmakingService.getPlayerStatsSummary(userId, gameSlug, period);
+    return reply.send(stats);
+  } catch (error) {
+    request.log.error(error, 'Erro ao buscar resumo de estatísticas do jogador');
+    return reply.status(500).send({ success: false, message: 'Erro interno do servidor.' });
+  }
 }
 }
 
