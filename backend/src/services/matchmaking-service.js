@@ -1044,92 +1044,73 @@ async listUserConversations(userId) {
 
     return { success: true, conversations: formattedConversations };
 }
- async getPlayerStatsSummary(userId, gameSlug, period = 'all_time') {
-    console.log(`📊 Buscando resumo de estatísticas para ${userId}, jogo: ${gameSlug || 'todos'}, período: ${period}`);
-    
-    // 1. Definir o filtro de data
-    const dateFilter = {};
-    if (period === 'monthly') {
-      const oneMonthAgo = new Date();
-      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-      dateFilter.completedAt = { gte: oneMonthAgo };
-    }
-
-    // 2. Definir o filtro de jogo
-    const gameFilter = {};
-    if (gameSlug) {
-      gameFilter.match = { gameSlug: gameSlug };
-    }
-
-    // 3. Buscar todas as estatísticas de partidas relevantes para o usuário
-    const matchStats = await this.prisma.matchStatistics.findMany({
-      where: {
-        ...dateFilter, // Aplica o filtro de data
-        ...gameFilter, // Aplica o filtro de jogo
-        match: {
-          // Garante que a partida envolva o usuário
-          OR: [
-            { player1Id: userId },
-            { player2Id: userId },
-          ],
+ 
+   // MÉTODO APRIMORADO: getPlayersRanking
+  
+  async getPlayersRanking(gameSlug, sortBy = 'winRate', limit = 50, offset = 0) {
+    console.log(`🏆 Buscando ranking para ${gameSlug}, ordenado por ${sortBy}`);
+    try {
+      const playerStats = await this.prisma.playerStatistics.findMany({
+        where: {
+          gameSlug: gameSlug,
+          totalMatches: { gte: 1 } // Mínimo de 1 partida para aparecer
         },
-      },
-      include: {
-        match: true, // Inclui os dados da partida para saber quem é player1/player2
-      },
-    });
+        include: {
+          user: {
+            include: {
+              profile: true
+            }
+          }
+        },
+      });
 
-    if (matchStats.length === 0) {
-      return { success: true, summary: { totalMatches: 0, wins: 0, kills: 0, caps: 0, capsPercentage: 0 } };
+      if (!playerStats) {
+        return { success: true, ranking: [] };
+      }
+
+      let rankedPlayers = playerStats.map(stat => {
+        // Verificação de segurança: se o usuário ou perfil for nulo, pule este registro
+        if (!stat.user || !stat.user.profile) {
+          return null;
+        }
+
+        const totalMatches = stat.totalMatches;
+        const totalWins = stat.wins + stat.winsWO;
+        const winRate = totalMatches > 0 ? (totalWins / totalMatches) : 0;
+        const avgKills = stat.matchesWithKills > 0 ? (stat.kills / stat.matchesWithKills) : 0;
+
+        return {
+          userId: stat.userId,
+          username: stat.user.profile.username || stat.user.nome,
+          avatar: stat.user.profile.avatar,
+          totalMatches: totalMatches,
+          wins: totalWins,
+          kills: stat.kills,
+          winRate: winRate,
+          avgKills: avgKills,
+        };
+      }).filter(player => player !== null); // Remove quaisquer entradas nulas
+
+      // Lógica de ordenação aprimorada
+      rankedPlayers.sort((a, b) => {
+        if (a[sortBy] < b[sortBy]) {
+          return 1;
+        }
+        if (a[sortBy] > b[sortBy]) {
+          return -1;
+        }
+        return 0;
+      });
+
+      const paginatedRanking = rankedPlayers.slice(parseInt(offset), parseInt(offset) + parseInt(limit));
+
+      return { success: true, ranking: paginatedRanking };
+
+    } catch (error) {
+      console.error('❌ Erro no serviço getPlayersRanking:', error);
+      // Retorna um erro claro para o controlador
+      throw new Error('Falha ao processar os dados do ranking.');
     }
-
-    // 4. Processar e agregar os resultados
-    let totalMatches = matchStats.length;
-    let wins = 0;
-    let kills = 0;
-    let caps = 0;
-    let matchesWithCaps = 0;
-
-    for (const stat of matchStats) {
-      const isPlayer1 = stat.match.player1Id === userId;
-      
-      // Contabilizar vitórias
-      if ((isPlayer1 && (stat.result === 'player1_win' || stat.result === 'player1_wo')) ||
-          (!isPlayer1 && (stat.result === 'player2_win' || stat.result === 'player2_wo'))) {
-        wins++;
-      }
-
-      // Contabilizar Kills
-      const playerKills = isPlayer1 ? stat.player1Kills : stat.player2Kills;
-      if (playerKills !== null) {
-        kills += playerKills;
-      }
-
-      // Contabilizar "Capas" e partidas com capas
-      const playerCaps = isPlayer1 ? stat.player1Caps : stat.player2Caps;
-      if (playerCaps !== null) {
-        caps += playerCaps;
-        matchesWithCaps++; // Só incrementa se o valor de capas foi registrado
-      }
-    }
-
-    // 5. Calcular a porcentagem de capas de forma segura
-    const capsPercentage = matchesWithCaps > 0 ? Math.round((caps / matchesWithCaps) * 100) : 0;
-    // Nota: A lógica aqui calcula a MÉDIA de capas por partida com capa, e multiplica por 100.
-    // Se "porcentagem de capas" significa outra coisa, podemos ajustar aqui.
-    // Por exemplo, se uma partida tem 5 capas possíveis e o jogador fez 3, isso seria 60%.
-    // Como não temos o "total possível", calcularemos a média por enquanto.
-
-    const summary = {
-      totalMatches,
-      wins,
-      kills,
-      caps,
-      capsPercentage,
-      winRate: totalMatches > 0 ? Math.round((wins / totalMatches) * 100) : 0,
-    };
-
-    return { success: true, summary };
   }
 
 }

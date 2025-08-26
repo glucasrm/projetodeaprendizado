@@ -475,18 +475,14 @@ export const UserProvider = ({ children }) => {
         }
     };
 
-    // NOVA FUNÇÃO: Buscar ranking de jogadores
-    const getPlayersRanking = async (gameSlug, sortBy = 'winRate', limit = 50, offset = 0) => {
+     // NOVA FUNÇÃO: Buscar ranking de jogadores
+   const getPlayersRanking = useCallback(async (gameSlug, sortBy = 'winRate', limit = 50, offset = 0) => {
         try {
             const token = localStorage.getItem('token');
-            const params = new URLSearchParams();
-            params.append('gameSlug', gameSlug);
-            params.append('sortBy', sortBy);
-            params.append('limit', limit.toString());
-            params.append('offset', offset.toString());
+            const params = new URLSearchParams({ gameSlug, sortBy, limit, offset });
             
             const response = await axios.get(
-                `${import.meta.env.VITE_API_URL}/api/matchmaking/ranking?${params}`,
+                `${import.meta.env.VITE_API_URL}/api/matchmaking/ranking?${params.toString()}`,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
             return response.data;
@@ -494,7 +490,7 @@ export const UserProvider = ({ children }) => {
             console.error('Erro ao buscar ranking:', error);
             return { success: false, message: 'Erro ao buscar ranking.' };
         }
-    };
+    }, []);
 
     // NOVA FUNÇÃO: Buscar estatísticas detalhadas de uma partida
     const getMatchStatistics = async (matchId) => {
@@ -551,6 +547,8 @@ export const UserProvider = ({ children }) => {
             ...newStats
         }));
     };
+
+    
 
     // --- pooling de notificações ---
     useEffect(() => {
@@ -684,6 +682,7 @@ useEffect(() => {
              getUserBetStatus,
             betStatus,
             canJoinNewBet,
+        
             
         }}>
             {children}

@@ -294,6 +294,30 @@ async joinMediationQueue(request, reply) {
     return reply.status(500).send({ success: false, message: 'Erro interno do servidor.' });
   }
 }
+async getPlayersRanking(request, reply) {
+    try {
+      // Extrai os parâmetros da query com valores padrão
+      const { 
+        gameSlug, 
+        sortBy = 'winRate', 
+        limit = 50, 
+        offset = 0 
+      } = request.query;
+
+      if (!gameSlug) {
+        return reply.status(400).send({ success: false, message: 'O parâmetro gameSlug é obrigatório.' });
+      }
+
+      const result = await this.matchmakingService.getPlayersRanking(gameSlug, sortBy, limit, offset);
+      
+      return reply.send(result);
+
+    } catch (error) {
+      request.log.error(error, 'Erro ao buscar ranking de jogadores');
+      return reply.status(500).send({ success: false, message: 'Erro interno do servidor ao processar o ranking.' });
+    }
+  }
+
 }
 
 export default MatchmakingController;
