@@ -24,6 +24,9 @@ import NotificationService from './services/notification-services.js';
 import MatchmakingService from './services/matchmaking-service.js';
 import FriendshipController from './controllers/friendship-controller.js';
 import UserController from './controllers/user-controller.js';
+import TournamentService from './services/tournament-service.js';
+import tournamentRoutes from './routes/tournament-routes.js';
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -55,6 +58,8 @@ app.register(authenticatePlugin);
 // 1. Crie instâncias de todos os serviços necessários.
 const notificationServiceInstance = new NotificationService(app.prisma);
 const matchmakingServiceInstance = new MatchmakingService(app.prisma, notificationServiceInstance);
+const tournamentServiceInstance = new TournamentService(app.prisma); // Nova instância
+
 
 // 2. Crie instâncias dos controladores que dependem de serviços.
 const userControllerInstance = new UserController(app.prisma);
@@ -75,6 +80,11 @@ app.register(friendshipRoutes, { prefix: '/api/friendship', friendshipController
 app.register(matchmakingRoutes, { 
   prefix: '/api/matchmaking',
   matchmakingService: matchmakingServiceInstance 
+});
+
+app.register(tournamentRoutes, {
+  prefix: '/api/tournaments',
+  tournamentService: tournamentServiceInstance,
 });
 
 

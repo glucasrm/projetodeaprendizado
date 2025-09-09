@@ -46,6 +46,8 @@ model User {
   // Seu modelo Bet existente para torneios
   tournamentBets          TournamentBet[]     @relation("TournamentBetsUser")
 
+    organizations   Organization[] // Um usuário pode ser dono de várias organizações
+
   // novo relaciomento com estatísticas
   playerStatistics      PlayerStatistics[]
 
@@ -86,17 +88,73 @@ model Friend {
   @@map("friends")
 }
 
+// NOVO MODELO: Organization (preparando para o futuro)
+model Organization {
+  id          String       @id @default(uuid())
+  name        String
+  logoUrl     String?
+  ownerId     String
+  owner       User         @relation(fields: [ownerId], references: [id])
+  tournaments Tournament[] // Uma organização pode ter vários torneios
+
+  @@map("organizations")
+}
+
+// MODELO TOURNAMENT APRIMORADO
 model Tournament {
-  id                String          @id @default(uuid())
-  name              String
-  game              String
-  createdBy         User            @relation(fields: [createdById], references: [id])
-  createdById       String
-  participants      Team[]
-  startDate         DateTime
-  tournamentBets    TournamentBet[] // Relacionamento reverso
+  id              String    @id @default(uuid())
+  name            String
+  gameSlug        String    // Ex: "free-fire"
+  
+  // Quem criou? Pode ser um usuário ou uma organização
+  createdById     String
+  createdBy       User      @relation(fields: [createdById], references: [id])
+  organizationId  String?
+  organization    Organization? @relation(fields: [organizationId], references: [id])
+
+  // Configurações do Torneio
+  mode            String    // "SOLO", "DUO", "SQUAD"
+  platform        String    // "MOBILE", "EMULATOR", "MIXED"
+  teamSize        Int       // 1 para SOLO, 2 para DUO, 4 para SQUAD
+  maxTeams        Int       // Número máximo de equipes/jogadores
+  
+  // Datas e Status
+  registrationEndsAt DateTime
+  startsAt        DateTime
+  status          String    @default("UPCOMING") // UPCOMING, REGISTRATION_OPEN, IN_PROGRESS, COMPLETED, CANCELLED
+
+  // Detalhes e Regras
+  description     String?   @db.Text
+  rules           String?   @db.Text
+  prizePool       String?   // Descrição dos prêmios
+  logoUrl         String?   // Logo do torneio
+
+  // Relacionamentos
+  participants    Team[]
+  rounds          TournamentRound[] // Um torneio tem várias rodadas/quedas
+  
+tournamentBets  TournamentBet[] // <-- aqui, campo que faltava
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@map("tournaments")
+}
+
+// NOVO MODELO: TournamentRound (para gerenciar as quedas)
+model TournamentRound {
+  id            String   @id @default(uuid())
+  tournamentId  String
+  tournament    Tournament @relation(fields: [tournamentId], references: [id])
+  
+  name          String   // Ex: "Fase de Grupos - Queda 1", "Final - Queda 3"
+  roundNumber   Int
+  startsAt      DateTime
+  
+  // Aqui você pode adicionar resultados da rodada no futuro
+  // Ex: pontuações, vencedores, etc.
+
+  @@map("tournament_rounds")
 }
 
 model Team {

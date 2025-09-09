@@ -1,36 +1,58 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react'; // Adicionado useContext
 import { useNavigate } from 'react-router-dom';
+import { UserContext } from '../../context/UserContext'; // Importar o Context
 import { Plus, X } from 'lucide-react';
 import GamesCard from '../../components/games/Games-list-minicard';
-import { useParams } from "react-router-dom";
 
-
+// Lista de jogos disponíveis para criação de torneios
 const games = [
   {
     nome: 'Free Fire',
     slug: 'free-fire',
     image: 'https://static.wikia.nocookie.net/freefire/images/2/2a/Wallpaperfreefire.jpg',
   },
-  {
-    nome: 'Valorant',
-    slug: 'valorant',
-    image: 'https://wallpapers.com/images/hd/valorant-pc-poster-xzycb13go8n6q2h8.jpg',
-  },
+  // Adicione outros jogos aqui no futuro
+  // {
+  //   nome: 'Valorant',
+  //   slug: 'valorant',
+  //   image: 'https://wallpapers.com/images/hd/valorant-pc-poster-xzycb13go8n6q2h8.jpg',
+  // },
 ];
 
-const CreateOptionsGrid = () => {
+const CreateOptionsGrid = ( ) => {
   const navigate = useNavigate();
+  const { createTournament } = useContext(UserContext); // Pega a função da API do contexto
+
+  // Estados para controlar a UI e os modais
   const [showTeamForm, setShowTeamForm] = useState(false);
-  const [teamName, setTeamName] = useState('');
   const [showGameSelector, setShowGameSelector] = useState(false);
   const [showTournamentDetails, setShowTournamentDetails] = useState(false);
+  const [step, setStep] = useState(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Estados para os dados do formulário
+  const [teamName, setTeamName] = useState('');
   const [selectedGame, setSelectedGame] = useState(null);
   const [tournamentName, setTournamentName] = useState('');
   const [mode, setMode] = useState('');
   const [platform, setPlatform] = useState('');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
-  const [step, setStep] = useState(1);
+
+    // Mapeamento CORRETO dos modos do frontend para os do backend
+  const modeMapping = {
+    '1v1': 'SOLO',
+    '2v2': 'DUO',
+    '4v4': 'SQUAD'
+  };
+
+  // Mapeamento CORRETO das plataformas do frontend para as do backend
+  const platformMapping = {
+    'Misto': 'MIXED',
+    'Mobile': 'MOBILE',
+    'Emulador': 'EMULATOR'
+  };
+
 
   const handleCreateTeam = () => {
     if (!teamName.trim()) return;
@@ -42,6 +64,32 @@ const CreateOptionsGrid = () => {
     setShowGameSelector(false);
     setSelectedGame(game);
     setShowTournamentDetails(true);
+    setStep(1); // Reseta para o primeiro passo
+  };
+
+  const handleCreateTournament = async () => {
+    if (!date || !time || !selectedGame || isSubmitting) return;
+
+    setIsSubmitting(true);
+    const startsAt = new Date(`${date}T${time}`);
+
+    const tournamentData = {
+      name: tournamentName,
+      gameSlug: selectedGame.slug,
+      mode: modeMapping[mode], // Mapeia o valor para o padrão do backend
+      platform: platformMapping[platform], // Mapeia o valor
+      startsAt: startsAt.toISOString(),
+    };
+
+    const result = await createTournament(tournamentData);
+    setIsSubmitting(false);
+
+    if (result.success) {
+      alert('Torneio criado com sucesso! Redirecionando para o painel...');
+      navigate(`/torneios/${result.tournament.gameSlug}/${result.tournament.id}/painel`);
+    } else {
+      alert(`Erro ao criar torneio: ${result.message}`);
+    }
   };
 
   const options = [
@@ -49,13 +97,13 @@ const CreateOptionsGrid = () => {
       title: 'Criar Equipe',
       image: 'https://static.vecteezy.com/ti/vetor-gratis/p1/29301007-icone-de-controle-de-jogo-com-design-plano-vetor.jpg',
       description: 'Monte sua equipe para competir em torneios.',
-      onClick: () => setShowTeamForm(true),
+      onClick: ( ) => setShowTeamForm(true),
     },
     {
       title: 'Criar Torneio',
       image: 'https://static.vecteezy.com/ti/vetor-gratis/p3/11896353-trofeu-de-jogo-competicao-de-jogo-torneio-de-jogo-vetor.jpg',
       description: 'Organize seu próprio torneio competitivo.',
-      onClick: () => setShowGameSelector(true),
+      onClick: ( ) => setShowGameSelector(true),
     },
   ];
 
@@ -85,42 +133,23 @@ const CreateOptionsGrid = () => {
         </div>
       </div>
 
+      {/* Modal para Criar Equipe */}
       {showTeamForm && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-gray-900 text-white rounded-2xl p-6 w-full max-w-md relative shadow-2xl">
-            <button
-              onClick={() => setShowTeamForm(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-white"
-            >
-              <X />
-            </button>
+            <button onClick={() => setShowTeamForm(false)} className="absolute top-4 right-4 text-gray-400 hover:text-white"><X /></button>
             <h2 className="text-2xl font-semibold mb-4">Nome da Equipe</h2>
-            <input
-              type="text"
-              value={teamName}
-              onChange={(e) => setTeamName(e.target.value)}
-              placeholder="Digite o nome da equipe"
-              className="w-full p-3 rounded-xl bg-gray-800 text-white border border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <button
-              onClick={handleCreateTeam}
-              className="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-xl transition"
-            >
-              Criar Equipe
-            </button>
+            <input type="text" value={teamName} onChange={(e) => setTeamName(e.target.value)} placeholder="Digite o nome da equipe" className="w-full p-3 rounded-xl bg-gray-800 text-white border border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <button onClick={handleCreateTeam} className="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-xl transition">Criar Equipe</button>
           </div>
         </div>
       )}
 
+      {/* Modal para Selecionar Jogo */}
       {showGameSelector && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-gray-900 text-white rounded-2xl p-6 w-full max-w-2xl relative shadow-2xl">
-            <button
-              onClick={() => setShowGameSelector(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-white"
-            >
-              <X />
-            </button>
+            <button onClick={() => setShowGameSelector(false)} className="absolute top-4 right-4 text-gray-400 hover:text-white"><X /></button>
             <h2 className="text-2xl font-semibold mb-6 text-center">Escolha o Jogo</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {games.map((game) => (
@@ -133,95 +162,45 @@ const CreateOptionsGrid = () => {
         </div>
       )}
 
+      {/* Modal para Detalhes do Torneio */}
       {showTournamentDetails && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-gray-900 text-white rounded-2xl p-6 w-full max-w-md relative shadow-2xl">
-            <button
-              onClick={() => setShowTournamentDetails(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-white"
-            >
-              <X />
-            </button>
-
+            <button onClick={() => setShowTournamentDetails(false)} className="absolute top-4 right-4 text-gray-400 hover:text-white"><X /></button>
+            
+            {/* Passo 1: Detalhes Iniciais */}
             {step === 1 && (
               <>
-                <h2 className="text-2xl font-semibold mb-4 text-center">Nome do Torneio</h2>
-                <input
-                  value={tournamentName}
-                  onChange={(e) => setTournamentName(e.target.value)}
-                  placeholder="Nome do Torneio"
-                  className="w-full p-3 mb-4 rounded-xl bg-gray-800 border border-gray-700"
-                />
+                <h2 className="text-2xl font-semibold mb-4 text-center">Detalhes do Torneio</h2>
+                <input value={tournamentName} onChange={(e) => setTournamentName(e.target.value)} placeholder="Nome do Torneio" className="w-full p-3 mb-4 rounded-xl bg-gray-800 border border-gray-700" />
                 <p className="font-semibold mb-2">Modalidade:</p>
                 <div className="flex gap-3 mb-4">
-                  {['1v1', '2v2', '4v4'].map((m) => (
-                    <button
-                      key={m}
-                      onClick={() => setMode(m)}
-                      className={`px-4 py-2 rounded-xl border ${mode === m ? 'bg-blue-600' : 'bg-gray-800'}`}
-                    >
-                      {m}
-                    </button>
+                  {Object.keys(modeMapping).map((m) => (
+                    <button key={m} onClick={() => setMode(m)} className={`px-4 py-2 rounded-xl border transition-colors ${mode === m ? 'bg-purple-600 border-purple-500' : 'bg-gray-800 border-gray-700 hover:bg-gray-700'}`}>{m}</button>
                   ))}
                 </div>
                 <p className="font-semibold mb-2">Plataforma:</p>
                 <div className="flex gap-3">
-                  {['Misto', 'Mobile', 'Emulador'].map((p) => (
-                    <button
-                      key={p}
-                      onClick={() => setPlatform(p)}
-                      className={`px-4 py-2 rounded-xl border ${platform === p ? 'bg-blue-600' : 'bg-gray-800'}`}
-                    >
-                      {p}
-                    </button>
+                  {Object.keys(platformMapping).map((p) => (
+                    <button key={p} onClick={() => setPlatform(p)} className={`px-4 py-2 rounded-xl border transition-colors ${platform === p ? 'bg-purple-600 border-purple-500' : 'bg-gray-800 border-gray-700 hover:bg-gray-700'}`}>{p}</button>
                   ))}
                 </div>
-                <button
-                  disabled={!tournamentName || !mode || !platform}
-                  onClick={() => setStep(2)}
-                  className="mt-6 w-full bg-green-600 hover:bg-green-700 py-2 rounded-xl transition"
-                >
-                  Próximo
-                </button>
+                <button disabled={!tournamentName || !mode || !platform} onClick={() => setStep(2)} className="mt-6 w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed py-2 rounded-xl transition">Próximo</button>
               </>
             )}
 
+            {/* Passo 2: Data e Hora */}
             {step === 2 && (
               <>
-                <h2 className="text-2xl font-semibold mb-4 text-center">Data e Hora</h2>
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="w-full p-3 mb-4 rounded-xl bg-gray-800 border border-gray-700"
-                />
-                <input
-                  type="time"
-                  value={time}
-                  onChange={(e) => setTime(e.target.value)}
-                  className="w-full p-3 mb-4 rounded-xl bg-gray-800 border border-gray-700"
-                />
-                <button
-                  disabled={!date || !time}
-                  onClick={() => {
-                    const fakeId = Math.floor(Math.random() * 10000);
-                    navigate(`/torneios/${selectedGame.slug}/${fakeId}/painel`, {
-                      state: {
-                        game: selectedGame,
-                        tournamentName,
-                        mode,
-                        platform,
-                        date,
-                        time,
-                      },
-                    });
-                    
-                  }}
-                  className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-xl transition"
-                >
-                  Criar Torneio
-                </button>
-
+                <h2 className="text-2xl font-semibold mb-4 text-center">Data e Hora de Início</h2>
+                <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full p-3 mb-4 rounded-xl bg-gray-800 border border-gray-700" />
+                <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-full p-3 mb-4 rounded-xl bg-gray-800 border border-gray-700" />
+                <div className="flex gap-2 mt-6">
+                    <button onClick={() => setStep(1)} className="w-full bg-gray-600 hover:bg-gray-700 py-2 rounded-xl transition">Voltar</button>
+                    <button disabled={!date || !time || isSubmitting} onClick={handleCreateTournament} className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-500 text-white py-2 rounded-xl transition">
+                        {isSubmitting ? 'Criando...' : 'Criar Torneio'}
+                    </button>
+                </div>
               </>
             )}
           </div>

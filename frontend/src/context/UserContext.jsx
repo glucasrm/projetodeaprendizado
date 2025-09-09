@@ -548,7 +548,21 @@ export const UserProvider = ({ children }) => {
         }));
     };
 
-    
+     const createTournament = async (tournamentData) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/tournaments`,
+        tournamentData,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao criar torneio:', error.response?.data || error);
+      return error.response?.data || { success: false, message: 'Erro de conexão.' };
+    }
+  };
+
 
     // --- pooling de notificações ---
     useEffect(() => {
@@ -682,6 +696,7 @@ useEffect(() => {
              getUserBetStatus,
             betStatus,
             canJoinNewBet,
+            createTournament,
         
             
         }}>
