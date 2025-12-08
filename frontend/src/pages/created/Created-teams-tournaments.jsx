@@ -74,14 +74,16 @@ const CreateOptionsGrid = ( ) => {
     const startsAt = new Date(`${date}T${time}`);
 
     const tournamentData = {
-      name: tournamentName,
-      gameSlug: selectedGame.slug,
-      mode: modeMapping[mode], // Mapeia o valor para o padrão do backend
-      platform: platformMapping[platform], // Mapeia o valor
-      startsAt: startsAt.toISOString(),
-    };
+  tournament: { // <--- Adicione este nível
+    name: tournamentName,
+    gameSlug: selectedGame.slug,
+    mode: modeMapping[mode],
+    platform: platformMapping[platform],
+    startsAt: startsAt.toISOString(),
+  }
+};
 
-    const result = await createTournament(tournamentData);
+   const result = await createTournament(tournamentData);
     setIsSubmitting(false);
 
     if (result.success) {

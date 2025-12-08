@@ -8,7 +8,7 @@ class TournamentController {
   async create(request, reply) {
     try {
       const creatorId = request.user.sub;
-      const result = await this.tournamentService.createTournament(request.body, creatorId);
+      const result = await this.tournamentService.create(userId, tournamentData);
       return reply.status(201).send(result);
     } catch (error) {
       request.log.error(error, 'Erro ao criar torneio');
